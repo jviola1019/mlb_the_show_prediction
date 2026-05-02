@@ -1,0 +1,18 @@
+{
+  "listings": [
+    {
+      "listing_name": "Mike Trout",
+      "best_sell_price": 50000,
+      "best_buy_price": 49500,
+      "item": {
+        "uuid": "abcdef0123456789abcdef0123456789",
+        "name": "Mike Trout",
+        "rarity": "Diamond",
+        "team": "LAA",
+        "ovr": 99,
+        "display_position": "CF",
+        "series": "Live Series"
+      }
+    }
+  ]
+}

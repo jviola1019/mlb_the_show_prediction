@@ -1,0 +1,9 @@
+{
+  "people": [
+    {
+      "id": 545361,
+      "fullName": "Mike Trout",
+      "primaryPosition": {"name": "Outfielder", "code": "8"}
+    }
+  ]
+}

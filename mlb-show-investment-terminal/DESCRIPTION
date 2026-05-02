@@ -1,0 +1,48 @@
+Package: mlbshowterminal
+Title: MLB The Show 26 Investment Terminal
+Version: 1.0.0
+Authors@R:
+    person("Joey", "Viola", email = "[email protected]", role = c("aut", "cre"))
+Description: A Shiny app for quantitative analysis of MLB The Show 26 card markets.
+    Provides block-bootstrap price forecasting with Newey-West HAC standard errors,
+    walk-forward cross-validation with isotonic calibration, and OVR change prediction
+    using real MLB Stats API data. Architecture allows server-side API calls without
+    browser CORS limitations.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends:
+    R (>= 4.4.0)
+Imports:
+    shiny (>= 1.9.0),
+    bslib (>= 0.8.0),
+    bsicons,
+    shinybusy,
+    httr2 (>= 1.0.0),
+    jsonlite,
+    dplyr,
+    tidyr,
+    purrr,
+    stringr,
+    lubridate,
+    glue,
+    ggplot2,
+    plotly,
+    reactable,
+    boot,
+    sandwich,
+    pracma,
+    tseries,
+    probably,
+    yardstick,
+    rsample,
+    memoise,
+    cachem
+Suggests:
+    testthat (>= 3.0.0),
+    rsconnect,
+    pkgload,
+    devtools,
+    waldo
+Config/testthat/edition: 3

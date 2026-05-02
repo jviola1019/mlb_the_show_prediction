@@ -1,0 +1,22 @@
+{
+  "best_sell_price": 50000,
+  "best_buy_price": 49500,
+  "item": {
+    "uuid": "abcdef0123456789abcdef0123456789",
+    "name": "Mike Trout",
+    "rarity": "Diamond",
+    "team": "LAA",
+    "ovr": 99
+  },
+  "price_history": [
+    {"date": "2026-04-25T12:00:00Z", "best_buy_price": 48000},
+    {"date": "2026-04-26T12:00:00Z", "best_buy_price": 49000},
+    {"date": "2026-04-27T12:00:00Z", "best_buy_price": 49500},
+    {"date": "2026-04-28T12:00:00Z", "best_buy_price": 49800},
+    {"date": "2026-04-29T12:00:00Z", "best_buy_price": 50000}
+  ],
+  "completed_orders": [
+    {"date": "2026-05-01T10:00:00Z", "price": 50000},
+    {"date": "2026-05-01T11:00:00Z", "price": 49900}
+  ]
+}

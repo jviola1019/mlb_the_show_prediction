@@ -1,0 +1,61 @@
+- generic [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: ◢◤
+        - generic [ref=e8]: MLB · INVESTMENT TERMINAL
+        - generic [ref=e9]: v1.0
+      - tablist [ref=e11]:
+        - tab "CARD" [ref=e12] [cursor=pointer]:
+          - img [ref=e13]
+          - text: CARD
+        - tab "OVR PRED" [active] [selected] [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+          - text: OVR PRED
+        - tab "VALIDATE" [ref=e18] [cursor=pointer]:
+          - img [ref=e19]
+          - text: VALIDATE
+        - tab "METHOD" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+          - text: METHOD
+  - tabpanel [ref=e479]:
+    - generic [ref=e480]:
+      - generic [ref=e483]:
+        - generic [ref=e484]: ROSTER UPDATE
+        - generic [ref=e485]: IN 6D · TRANSACTION
+        - generic [ref=e486]: Fri May 08 · weekly tx
+      - generic [ref=e487]:
+        - generic [ref=e488]: "01"
+        - generic [ref=e489]: ·
+        - generic [ref=e490]: PLAYER LOOKUP
+      - generic [ref=e491]:
+        - generic [ref=e492]:
+          - generic [ref=e493]:
+            - generic [ref=e494]: Player name
+            - textbox "Player name" [ref=e495]: Mike Trout
+          - button "FETCH STATS" [ref=e497] [cursor=pointer]
+        - generic [ref=e498]:
+          - generic [ref=e499]:
+            - generic [ref=e500]: role
+            - generic [ref=e503] [cursor=pointer]:
+              - generic [ref=e504]: auto
+              - combobox "role" [ref=e505]
+          - generic [ref=e506]:
+            - generic [ref=e507]: current OVR
+            - spinbutton "current OVR" [ref=e508]: "80"
+          - generic [ref=e509]:
+            - generic [ref=e510]: rarity
+            - generic [ref=e513] [cursor=pointer]:
+              - generic [ref=e514]: Gold
+              - combobox "rarity" [ref=e515]
+      - generic [ref=e516]:
+        - generic [ref=e517]: "02"
+        - generic [ref=e518]: ·
+        - generic [ref=e519]: RECENT VS SEASON
+      - generic [ref=e521]:
+        - generic [ref=e522]: "03"
+        - generic [ref=e523]: ·
+        - generic [ref=e524]: PREDICTION
+  - log [ref=e169]
+  - log [ref=e170]
+  - img [ref=e247]

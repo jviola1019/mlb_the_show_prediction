@@ -1,0 +1,100 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: ◢◤
+        - generic [ref=e8]: MLB · INVESTMENT TERMINAL
+        - generic [ref=e9]: v1.0
+      - tablist [ref=e11]:
+        - tab "CARD" [ref=e12] [cursor=pointer]:
+          - img [ref=e13]
+          - text: CARD
+        - tab "OVR PRED" [selected] [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+          - text: OVR PRED
+        - tab "VALIDATE" [ref=e18] [cursor=pointer]:
+          - img [ref=e19]
+          - text: VALIDATE
+        - tab "METHOD" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+          - text: METHOD
+  - tabpanel [ref=e479]:
+    - generic [ref=e480]:
+      - generic [ref=e483]:
+        - generic [ref=e484]: ROSTER UPDATE
+        - generic [ref=e485]: IN 6D · TRANSACTION
+        - generic [ref=e486]: Fri May 08 · weekly tx
+      - generic [ref=e487]:
+        - generic [ref=e488]: "01"
+        - generic [ref=e489]: ·
+        - generic [ref=e490]: PLAYER LOOKUP
+      - generic [ref=e491]:
+        - generic [ref=e492]:
+          - generic [ref=e493]:
+            - generic [ref=e494]: Player name
+            - textbox "Player name" [ref=e495]: Mike Trout
+          - button "FETCH STATS" [ref=e497] [cursor=pointer]
+        - generic [ref=e498]:
+          - generic [ref=e499]:
+            - generic [ref=e500]: role
+            - generic [ref=e503] [cursor=pointer]:
+              - generic [ref=e504]: auto
+              - combobox "role" [ref=e505]
+          - generic [ref=e506]:
+            - generic [ref=e507]: current OVR
+            - spinbutton "current OVR" [ref=e508]: "80"
+          - generic [ref=e509]:
+            - generic [ref=e510]: rarity
+            - generic [ref=e513] [cursor=pointer]:
+              - generic [ref=e514]: Gold
+              - combobox "rarity" [ref=e515]
+      - generic [ref=e516]:
+        - generic [ref=e517]: "02"
+        - generic [ref=e518]: ·
+        - generic [ref=e519]: RECENT VS SEASON
+      - generic [ref=e526]:
+        - generic [ref=e527]:
+          - text: Mike Trout
+          - generic [ref=e528]: HITTER
+          - text: Outfielder
+        - generic [ref=e529]:
+          - generic [ref=e530]:
+            - generic [ref=e531]: OPS 14D
+            - generic [ref=e532]: "0.981"
+            - generic [ref=e533]: season 0.984
+          - generic [ref=e534]:
+            - generic [ref=e535]: AVG 14D
+            - generic [ref=e536]: "0.268"
+            - generic [ref=e537]: season 0.248
+          - generic [ref=e538]:
+            - generic [ref=e539]: OBP 14D
+            - generic [ref=e540]: "0.444"
+            - generic [ref=e541]: season 0.426
+      - generic [ref=e521]:
+        - generic [ref=e522]: "03"
+        - generic [ref=e523]: ·
+        - generic [ref=e524]: PREDICTION
+      - generic [ref=e543]:
+        - generic [ref=e544]:
+          - generic [ref=e545]: Z-SCORE
+          - generic [ref=e546]: "+0.21"
+          - generic [ref=e547]: ops -0.03 · ba 0.44
+        - generic [ref=e548]:
+          - generic [ref=e549]: ΔOVR
+          - generic [ref=e550]: "+0"
+        - generic [ref=e551]:
+          - generic [ref=e552]: ΔPRICE
+          - generic [ref=e553]: +0.0%
+        - generic [ref=e554]:
+          - generic [ref=e555]: BOUNDARY
+          - generic [ref=e556]: LOW
+          - generic [ref=e557]: no crossing
+        - generic [ref=e558]:
+          - generic [ref=e559]: CONFIDENCE
+          - generic [ref=e560]: LOW
+        - generic [ref=e561]:
+          - generic [ref=e562]: BASE %
+          - generic [ref=e563]: +0.0%
+  - log [ref=e169]
+  - log [ref=e170]
+  - img [ref=e247]

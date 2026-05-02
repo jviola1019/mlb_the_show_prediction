@@ -1,0 +1,150 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: ◢◤
+        - generic [ref=e8]: MLB · INVESTMENT TERMINAL
+        - generic [ref=e9]: v1.0
+      - tablist [ref=e11]:
+        - tab "CARD" [ref=e12] [cursor=pointer]:
+          - img [ref=e13]
+          - text: CARD
+        - tab "OVR PRED" [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+          - text: OVR PRED
+        - tab "VALIDATE" [selected] [ref=e18] [cursor=pointer]:
+          - img [ref=e19]
+          - text: VALIDATE
+        - tab "METHOD" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+          - text: METHOD
+  - tabpanel [ref=e564]:
+    - generic [ref=e565]:
+      - generic [ref=e566]:
+        - generic [ref=e567]: "01"
+        - generic [ref=e568]: ·
+        - generic [ref=e569]: WALK-FORWARD CV (LIVE CARD)
+      - generic [ref=e570]: This tab uses the price history of the card loaded on the CARD tab. No synthetic data.
+      - generic [ref=e571]:
+        - generic [ref=e572]:
+          - generic [ref=e573]:
+            - generic [ref=e574]: horizon (steps)
+            - generic [ref=e575]:
+              - generic [ref=e576]:
+                - generic [ref=e578]: "1"
+                - generic [ref=e579]: "14"
+                - generic [ref=e580]: "7"
+              - generic [ref=e581]:
+                - generic [ref=e583]: "1"
+                - generic [ref=e588]: "3"
+                - generic [ref=e593]: "5"
+                - generic [ref=e598]: "7"
+                - generic [ref=e603]: "9"
+                - generic [ref=e608]: "11"
+                - generic [ref=e613]: "13"
+                - generic [ref=e618]: "14"
+            - textbox "horizon (steps)" [ref=e621]: "7"
+          - generic [ref=e622]:
+            - generic [ref=e623]: lookback (steps)
+            - generic [ref=e624]:
+              - generic [ref=e625]:
+                - generic [ref=e627]: "8"
+                - generic [ref=e628]: "96"
+                - generic [ref=e629]: "30"
+              - generic [ref=e630]:
+                - generic [ref=e632]: "8"
+                - generic [ref=e636]: "17"
+                - generic [ref=e640]: "26"
+                - generic [ref=e644]: "35"
+                - generic [ref=e648]: "44"
+                - generic [ref=e652]: "53"
+                - generic [ref=e656]: "62"
+                - generic [ref=e660]: "71"
+                - generic [ref=e664]: "80"
+                - generic [ref=e668]: "89"
+                - generic [ref=e672]: "96"
+            - textbox "lookback (steps)" [ref=e675]: "30"
+        - generic [ref=e676]:
+          - radiogroup "CI method" [ref=e677]:
+            - generic [ref=e678]: CI method
+            - generic [ref=e679]:
+              - generic [ref=e680] [cursor=pointer]:
+                - radio "block-residual" [checked] [ref=e681]
+                - text: block-residual
+              - generic [ref=e682] [cursor=pointer]:
+                - radio "per-trade" [ref=e683]
+                - text: per-trade
+          - generic [ref=e684]:
+            - generic [ref=e685]: boot replicates
+            - generic [ref=e686]:
+              - generic [ref=e687]:
+                - generic [ref=e689]: "100"
+                - generic [ref=e690]: 2,000
+                - generic [ref=e691]: "500"
+              - generic [ref=e692]:
+                - generic [ref=e694]: "100"
+                - generic [ref=e698]: "300"
+                - generic [ref=e702]: "500"
+                - generic [ref=e706]: "700"
+                - generic [ref=e710]: "900"
+                - generic [ref=e714]: 1,100
+                - generic [ref=e718]: 1,300
+                - generic [ref=e725]: 1,700
+                - generic [ref=e732]: 2,000
+            - textbox "boot replicates" [ref=e735]: "500"
+        - button "RUN VALIDATION" [ref=e736] [cursor=pointer]
+      - generic [ref=e737]:
+        - generic [ref=e738]: "02"
+        - generic [ref=e739]: ·
+        - generic [ref=e740]: DISTRIBUTION OF PER-TRADE BRIER
+      - generic [ref=e770]:
+        - img:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic: per-trade Brier
+              - generic:
+                - generic:
+                  - generic: "0.1"
+                - generic:
+                  - generic: "0.2"
+                - generic:
+                  - generic: "0.3"
+                - generic:
+                  - generic: "0.4"
+        - img:
+          - generic:
+            - generic:
+              - generic: Brier
+        - img
+      - generic [ref=e742]:
+        - generic [ref=e743]: "03"
+        - generic [ref=e744]: ·
+        - generic [ref=e745]: SUMMARY
+      - generic [ref=e747]:
+        - generic [ref=e784]: NO EDGE — CV IC<0 (sig)
+        - generic [ref=e785]:
+          - generic [ref=e786]:
+            - generic [ref=e787]: N TRADES
+            - generic [ref=e788]: "163"
+          - generic [ref=e789]:
+            - generic [ref=e790]: BRIER
+            - generic [ref=e791]: "0.262"
+            - generic [ref=e792]: "[0.25, 0.27]"
+          - generic [ref=e793]:
+            - generic [ref=e794]: IC
+            - generic [ref=e795]: "-0.241"
+            - generic [ref=e796]: "[-0.37, -0.08]"
+          - generic [ref=e797]:
+            - generic [ref=e798]: HIT RATE
+            - generic [ref=e799]: 39.3%
+          - generic [ref=e800]:
+            - generic [ref=e801]: CI METHOD
+            - generic [ref=e802]: BLOCK
+          - generic [ref=e803]:
+            - generic [ref=e804]: BOOT R
+            - generic [ref=e805]: "500"
+  - log [ref=e169]
+  - log [ref=e170]
+  - img [ref=e247]

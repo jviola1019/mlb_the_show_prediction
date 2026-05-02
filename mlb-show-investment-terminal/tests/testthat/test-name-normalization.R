@@ -1,0 +1,23 @@
+test_that("normalize_name handles all 14 canonical cases", {
+  expect_equal(normalize_name("Mike Trout"), "Mike Trout")
+  expect_equal(normalize_name("mike trout"), "mike trout")
+  expect_equal(normalize_name("MIKE TROUT"), "MIKE TROUT")
+  expect_equal(normalize_name("  Mike   Trout  "), "Mike Trout")
+  expect_equal(normalize_name("Trout, Mike"), "Mike Trout")
+  expect_equal(normalize_name("Bobby Witt Jr."), "Bobby Witt Jr.")
+  expect_equal(normalize_name("Acuña Jr."), "Acuña Jr.")
+  expect_equal(normalize_name("Hyun-Jin Ryu"), "Hyun-Jin Ryu")
+  expect_equal(normalize_name("D'Arnaud, Travis"), "Travis D'Arnaud")
+  expect_equal(normalize_name(""), "")
+  expect_equal(normalize_name(NA_character_), "")
+  expect_equal(normalize_name("..Mike Trout.."), "Mike Trout..")
+  expect_equal(normalize_name("Mike  \tTrout"), "Mike Trout")
+  expect_equal(normalize_name(" , , "), "")
+})
+
+test_that("normalize_name is robust to non-character input", {
+  expect_equal(normalize_name(NULL), "")
+  expect_equal(normalize_name(123), "")
+  expect_equal(normalize_name(c("a", "b")), "")
+  expect_equal(normalize_name(NA), "")
+})
