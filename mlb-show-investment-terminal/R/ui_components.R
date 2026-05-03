@@ -47,13 +47,24 @@ signal_pill <- function(action) {
                 "STRONG SELL" = "signal-strong-sell",
                 "SELL"        = "signal-sell",
                 "HOLD"        = "signal-hold",
+                "ABSTAIN"     = "signal-abstain",
                 "signal-hold"
   )
+  glyph <- if (action == "ABSTAIN") "⊘" else "◉"
   htmltools::tags$div(
     class = paste("signal-pill", cls),
-    htmltools::tags$span(class = "signal-glyph", "◉"),
+    htmltools::tags$span(class = "signal-glyph", glyph),
     htmltools::tags$span(class = "signal-text", action),
-    htmltools::tags$span(class = "signal-glyph", "◉")
+    htmltools::tags$span(class = "signal-glyph", glyph)
+  )
+}
+
+#' Static badge that explicitly disclaims LLM commentary as a non-signal.
+#' @export
+not_a_signal_badge <- function() {
+  htmltools::tags$span(
+    class = "not-a-signal-badge",
+    "NOT A SIGNAL · COMMENTARY ONLY"
   )
 }
 

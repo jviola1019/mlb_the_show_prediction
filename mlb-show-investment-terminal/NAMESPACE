@@ -1,0 +1,6 @@
+# Hand-managed: this app is sourced rather than installed as a package.
+# The R/*.R files are loaded by app.R via list.files() + source(); no
+# explicit exports are required. Kept here so devtools::check() doesn't
+# emit a "missing NAMESPACE" note.
+
+# No exports — see app.R for the load mechanism.

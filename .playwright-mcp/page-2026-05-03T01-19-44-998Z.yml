@@ -1,0 +1,214 @@
+- generic [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: ◢◤
+        - generic [ref=e8]: MLB · INVESTMENT TERMINAL
+        - generic [ref=e9]: v1.0
+      - tablist [ref=e11]:
+        - tab "CARD" [ref=e12] [cursor=pointer]:
+          - img [ref=e13]
+          - text: CARD
+        - tab "OVR PRED" [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+          - text: OVR PRED
+        - tab "MARKET SCAN" [selected] [ref=e18] [cursor=pointer]:
+          - img [ref=e19]
+          - text: MARKET SCAN
+        - tab "VALIDATE" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+          - text: VALIDATE
+        - tab "METHOD" [ref=e25] [cursor=pointer]:
+          - img [ref=e26]
+          - text: METHOD
+  - tabpanel [ref=e252]:
+    - generic [ref=e253]:
+      - generic [ref=e254]:
+        - generic [ref=e255]: "01"
+        - generic [ref=e256]: ·
+        - generic [ref=e257]: UNIVERSE
+      - generic [ref=e258]:
+        - radiogroup "mode" [ref=e259]:
+          - generic [ref=e260]: mode
+          - generic [ref=e261]:
+            - generic [ref=e263] [cursor=pointer]:
+              - radio "Top Diamonds (live discovery)" [checked] [ref=e264]
+              - text: Top Diamonds (live discovery)
+            - generic [ref=e266] [cursor=pointer]:
+              - radio "Paste UUIDs" [ref=e267]
+              - text: Paste UUIDs
+            - generic [ref=e269] [cursor=pointer]:
+              - radio "Session history (loaded cards)" [ref=e270]
+              - text: Session history (loaded cards)
+        - generic [ref=e272]:
+          - generic [ref=e273]: N (cards to scan)
+          - generic [ref=e274]:
+            - generic [ref=e275]:
+              - generic [ref=e277]: "5"
+              - generic [ref=e278]: "50"
+              - generic [ref=e279]: "10"
+            - generic [ref=e280]:
+              - generic [ref=e282]: "5"
+              - generic [ref=e286]: "10"
+              - generic [ref=e290]: "15"
+              - generic [ref=e294]: "20"
+              - generic [ref=e298]: "25"
+              - generic [ref=e302]: "30"
+              - generic [ref=e306]: "35"
+              - generic [ref=e310]: "40"
+              - generic [ref=e314]: "45"
+              - generic [ref=e318]: "50"
+          - textbox "N (cards to scan)" [ref=e321]: "10"
+      - generic [ref=e322]:
+        - generic [ref=e323]: "02"
+        - generic [ref=e324]: ·
+        - generic [ref=e325]: RUN
+      - generic [ref=e326]:
+        - generic [ref=e327]: Rate-limited 1.5s/card to respect The Show API. Top-10 scan takes ~20s; top-50 ~75s.
+        - button "SCAN UNIVERSE" [active] [ref=e328] [cursor=pointer]
+      - generic [ref=e329]:
+        - generic [ref=e330]: "03"
+        - generic [ref=e331]: ·
+        - generic [ref=e332]: TOP BUY (INVESTABLE ONLY)
+      - table [ref=e360]:
+        - rowgroup [ref=e361]:
+          - row "empty" [ref=e362]:
+            - columnheader "empty" [ref=e363]:
+              - generic [ref=e364]: empty
+        - rowgroup [ref=e365]:
+          - row "no rows" [ref=e367]:
+            - cell "no rows" [ref=e368]:
+              - generic [ref=e369]: no rows
+      - generic [ref=e334]:
+        - generic [ref=e335]: "04"
+        - generic [ref=e336]: ·
+        - generic [ref=e337]: TOP SELL (INVESTABLE ONLY)
+      - table [ref=e372]:
+        - rowgroup [ref=e373]:
+          - row "Sort PLAYER Sort RARITY Sort OVR Sort ASK Sort E[ret] Sort SCORE Sort ACTION Sort CV IC" [ref=e374]:
+            - columnheader "Sort PLAYER" [ref=e375] [cursor=pointer]:
+              - generic [ref=e378]: PLAYER
+            - columnheader "Sort RARITY" [ref=e379] [cursor=pointer]:
+              - generic [ref=e382]: RARITY
+            - columnheader "Sort OVR" [ref=e383] [cursor=pointer]:
+              - generic [ref=e386]: OVR
+            - columnheader "Sort ASK" [ref=e387] [cursor=pointer]:
+              - generic [ref=e390]: ASK
+            - columnheader "Sort E[ret]" [ref=e391] [cursor=pointer]:
+              - generic [ref=e394]: E[ret]
+            - columnheader "Sort SCORE" [ref=e395] [cursor=pointer]:
+              - generic [ref=e398]: SCORE
+            - columnheader "Sort ACTION" [ref=e399] [cursor=pointer]:
+              - generic [ref=e402]: ACTION
+            - columnheader "Sort CV IC" [ref=e403] [cursor=pointer]:
+              - generic [ref=e406]: CV IC
+        - rowgroup [ref=e407]:
+          - row "Aroldis Chapman Diamond 94 124,198 -22.13% -2 SELL -0.086" [ref=e409]:
+            - cell "Aroldis Chapman" [ref=e410]:
+              - generic [ref=e411]: Aroldis Chapman
+            - cell "Diamond" [ref=e412]:
+              - generic [ref=e413]: Diamond
+            - cell "94" [ref=e414]:
+              - generic [ref=e415]: "94"
+            - cell "124,198" [ref=e416]:
+              - generic [ref=e417]: 124,198
+            - cell "-22.13%" [ref=e418]:
+              - generic [ref=e419]: "-22.13%"
+            - cell "-2" [ref=e420]:
+              - generic [ref=e421]: "-2"
+            - cell "SELL" [ref=e422]:
+              - generic [ref=e423]: SELL
+            - cell "-0.086" [ref=e424]:
+              - generic [ref=e425]: "-0.086"
+          - row "Carlos Cortes Diamond 92 20,390 -17.14% -2 SELL -0.066" [ref=e427]:
+            - cell "Carlos Cortes" [ref=e428]:
+              - generic [ref=e429]: Carlos Cortes
+            - cell "Diamond" [ref=e430]:
+              - generic [ref=e431]: Diamond
+            - cell "92" [ref=e432]:
+              - generic [ref=e433]: "92"
+            - cell "20,390" [ref=e434]:
+              - generic [ref=e435]: 20,390
+            - cell "-17.14%" [ref=e436]:
+              - generic [ref=e437]: "-17.14%"
+            - cell "-2" [ref=e438]:
+              - generic [ref=e439]: "-2"
+            - cell "SELL" [ref=e440]:
+              - generic [ref=e441]: SELL
+            - cell "-0.066" [ref=e442]:
+              - generic [ref=e443]: "-0.066"
+      - generic [ref=e339]:
+        - generic [ref=e340]: "05"
+        - generic [ref=e341]: ·
+        - generic [ref=e342]: OBSERVATIONAL ONLY (DIRECTION, NO ACTION)
+      - table [ref=e446]:
+        - rowgroup [ref=e447]:
+          - row "Sort PLAYER Sort RARITY Sort OVR Sort ASK Sort DIR Sort CV IC Sort FAILED GATES" [ref=e448]:
+            - columnheader "Sort PLAYER" [ref=e449] [cursor=pointer]:
+              - generic [ref=e452]: PLAYER
+            - columnheader "Sort RARITY" [ref=e453] [cursor=pointer]:
+              - generic [ref=e456]: RARITY
+            - columnheader "Sort OVR" [ref=e457] [cursor=pointer]:
+              - generic [ref=e460]: OVR
+            - columnheader "Sort ASK" [ref=e461] [cursor=pointer]:
+              - generic [ref=e464]: ASK
+            - columnheader "Sort DIR" [ref=e465] [cursor=pointer]:
+              - generic [ref=e468]: DIR
+            - columnheader "Sort CV IC" [ref=e469] [cursor=pointer]:
+              - generic [ref=e472]: CV IC
+            - columnheader "Sort FAILED GATES" [ref=e473] [cursor=pointer]:
+              - generic [ref=e476]: FAILED GATES
+        - rowgroup [ref=e477]:
+          - row "Cody Bellinger Diamond 93 132,000 ▼ -0.168 cv_skill_not_negative_sig" [ref=e479]:
+            - cell "Cody Bellinger" [ref=e480]:
+              - generic [ref=e481]: Cody Bellinger
+            - cell "Diamond" [ref=e482]:
+              - generic [ref=e483]: Diamond
+            - cell "93" [ref=e484]:
+              - generic [ref=e485]: "93"
+            - cell "132,000" [ref=e486]:
+              - generic [ref=e487]: 132,000
+            - cell "▼" [ref=e488]:
+              - generic [ref=e489]: ▼
+            - cell "-0.168" [ref=e490]:
+              - generic [ref=e491]: "-0.168"
+            - cell "cv_skill_not_negative_sig" [ref=e492]:
+              - generic [ref=e493]: cv_skill_not_negative_sig
+          - row "Giancarlo Stanton Diamond 93 99,999 ▼ -0.232 cv_skill_not_negative_sig" [ref=e495]:
+            - cell "Giancarlo Stanton" [ref=e496]:
+              - generic [ref=e497]: Giancarlo Stanton
+            - cell "Diamond" [ref=e498]:
+              - generic [ref=e499]: Diamond
+            - cell "93" [ref=e500]:
+              - generic [ref=e501]: "93"
+            - cell "99,999" [ref=e502]:
+              - generic [ref=e503]: 99,999
+            - cell "▼" [ref=e504]:
+              - generic [ref=e505]: ▼
+            - cell "-0.232" [ref=e506]:
+              - generic [ref=e507]: "-0.232"
+            - cell "cv_skill_not_negative_sig" [ref=e508]:
+              - generic [ref=e509]: cv_skill_not_negative_sig
+          - row "Craig Biggio Diamond 94 71,999 ▼ -0.230 cv_skill_not_negative_sig" [ref=e511]:
+            - cell "Craig Biggio" [ref=e512]:
+              - generic [ref=e513]: Craig Biggio
+            - cell "Diamond" [ref=e514]:
+              - generic [ref=e515]: Diamond
+            - cell "94" [ref=e516]:
+              - generic [ref=e517]: "94"
+            - cell "71,999" [ref=e518]:
+              - generic [ref=e519]: 71,999
+            - cell "▼" [ref=e520]:
+              - generic [ref=e521]: ▼
+            - cell "-0.230" [ref=e522]:
+              - generic [ref=e523]: "-0.230"
+            - cell "cv_skill_not_negative_sig" [ref=e524]:
+              - generic [ref=e525]: cv_skill_not_negative_sig
+      - generic [ref=e344]:
+        - generic [ref=e345]: "06"
+        - generic [ref=e346]: ·
+        - generic [ref=e347]: DROPPED (VALIDATION GATE FAILED)
+      - generic [ref=e527]: no dropped cards in this scan
+  - log [ref=e172]
+  - log [ref=e173]
+  - img [ref=e250]

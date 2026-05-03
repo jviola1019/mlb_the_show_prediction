@@ -1,0 +1,10 @@
+# Copy to .Renviron and fill in. .Renviron is gitignored; never commit it.
+
+# Optional: enables the LLM cross-check (claude-opus-4-7) on the CARD tab.
+# Without this set, the LLM block shows "Set ANTHROPIC_API_KEY to enable".
+ANTHROPIC_API_KEY=
+
+# shinyapps.io deploy credentials (only required if you run deploy.R).
+SHINYAPPS_NAME=
+SHINYAPPS_TOKEN=
+SHINYAPPS_SECRET=

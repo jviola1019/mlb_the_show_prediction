@@ -1,0 +1,360 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: ◢◤
+        - generic [ref=e8]: MLB · INVESTMENT TERMINAL
+        - generic [ref=e9]: v1.0
+      - tablist [ref=e11]:
+        - tab "CARD" [selected] [ref=e12] [cursor=pointer]:
+          - img [ref=e13]
+          - text: CARD
+        - tab "OVR PRED" [ref=e15] [cursor=pointer]:
+          - img [ref=e16]
+          - text: OVR PRED
+        - tab "VALIDATE" [ref=e18] [cursor=pointer]:
+          - img [ref=e19]
+          - text: VALIDATE
+        - tab "METHOD" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+          - text: METHOD
+  - tabpanel [ref=e35]:
+    - generic [ref=e36]:
+      - generic [ref=e173]:
+        - generic [ref=e174]: ROSTER UPDATE
+        - generic [ref=e175]: IN 6D · TRANSACTION
+        - generic [ref=e176]: Fri May 08 · weekly tx
+      - generic [ref=e37]:
+        - generic [ref=e38]: "01"
+        - generic [ref=e39]: ·
+        - generic [ref=e40]: FIND CARD
+      - generic [ref=e42]:
+        - generic [ref=e43]:
+          - generic [ref=e44]: Player name
+          - textbox "Player name" [ref=e45]:
+            - /placeholder: e.g. Bobby Witt Jr.
+            - text: Mike Trout
+        - button "SEARCH" [ref=e47] [cursor=pointer]
+      - generic [ref=e48]:
+        - generic [ref=e49]: "02"
+        - generic [ref=e50]: ·
+        - generic [ref=e51]: INGEST LISTING.JSON
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - generic [ref=e54]:
+            - generic [ref=e55]: UUID (32 hex)
+            - textbox "UUID (32 hex)" [ref=e56]:
+              - /placeholder: abcdef0123456789abcdef0123456789
+          - button "LOAD & ANALYZE" [ref=e58] [cursor=pointer]
+        - generic [ref=e250]:
+          - text: Mike Trout
+          - generic [ref=e251]: Diamond
+          - text: "OVR 90 Angels ph rows: 200"
+      - generic [ref=e59]:
+        - generic [ref=e60]: "03"
+        - generic [ref=e61]: ·
+        - generic [ref=e62]: TARGET
+      - generic [ref=e252]:
+        - generic [ref=e253]:
+          - generic [ref=e254]: Mike Trout
+          - generic [ref=e255]: Diamond
+          - generic [ref=e256]: OVR 90
+          - generic [ref=e257]: Angels
+          - generic [ref=e258]: OBSERVATIONAL ONLY
+        - generic [ref=e259]:
+          - generic [ref=e260]:
+            - generic [ref=e261]: ◉
+            - generic [ref=e262]: OBSERVE ▼
+            - generic [ref=e263]: ◉
+          - generic [ref=e264]:
+            - generic [ref=e265]: score -1
+            - generic "liquidity = 0%" [ref=e266]
+        - generic [ref=e272]:
+          - generic [ref=e273]: OBSERVATIONAL ONLY — direction reported, no action
+          - list [ref=e274]:
+            - listitem [ref=e275]: CV IC upper bound = -0.10 (significant negative skill)
+        - generic [ref=e276]:
+          - generic [ref=e277]: "-EV<-5% (-22.7%)"
+          - generic [ref=e278]: drift sig+
+          - generic [ref=e279]: wide spread (15%)
+          - generic [ref=e280]: CV IC<0 (sig)
+          - generic [ref=e281]: mean-revert
+        - generic [ref=e282]:
+          - generic [ref=e283]:
+            - generic [ref=e284]: ASK
+            - generic [ref=e285]: 45,996s
+          - generic [ref=e286]:
+            - generic [ref=e287]: BID
+            - generic [ref=e288]: 39,001s
+          - generic [ref=e289]:
+            - generic [ref=e290]: SPREAD
+            - generic [ref=e291]: 15.2%
+        - generic [ref=e292]:
+          - generic [ref=e293]: DQ
+          - generic [ref=e294]: DATA QUALITY
+        - generic [ref=e295]:
+          - generic [ref=e297]: ✓ SCHEMA
+          - generic [ref=e299]: ✓ HISTORY
+          - generic [ref=e301]: ✓ FRESHNESS
+          - generic [ref=e303]: ✓ CV AVAILABLE
+          - generic [ref=e304]:
+            - generic [ref=e305]: ✗ CV SKILL
+            - generic [ref=e306]: CV IC upper bound = -0.10 (significant negative skill)
+          - generic [ref=e308]: ✓ CI WIDTH
+      - generic [ref=e64]:
+        - generic [ref=e65]: "04"
+        - generic [ref=e66]: ·
+        - generic [ref=e67]: PRICE PATH + 7-DAY FORECAST
+      - generic [ref=e310]:
+        - img:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic: "0"
+                - generic:
+                  - generic: "20"
+                - generic:
+                  - generic: "40"
+                - generic:
+                  - generic: "60"
+                - generic:
+                  - generic: "80"
+                - generic:
+                  - generic: "100"
+                - generic:
+                  - generic: "120"
+                - generic:
+                  - generic: "140"
+                - generic:
+                  - generic: "160"
+              - generic:
+                - generic:
+                  - generic: 35k
+                - generic:
+                  - generic: 40k
+                - generic:
+                  - generic: 45k
+                - generic:
+                  - generic: 50k
+                - generic:
+                  - generic: 55k
+        - img:
+          - generic:
+            - generic [ref=e327]:
+              - generic [ref=e329]: history
+              - generic [ref=e332]: 5-95%
+              - generic [ref=e338]: 25-75%
+              - generic [ref=e344]: median
+            - generic:
+              - generic: hours (history ← → forecast)
+            - generic:
+              - generic: stubs
+        - img
+      - generic [ref=e84]:
+        - generic [ref=e85]: "05"
+        - generic [ref=e86]: ·
+        - generic [ref=e87]: MULTI-HORIZON EV
+      - table [ref=e348]:
+        - rowgroup [ref=e349]:
+          - row "Sort HORIZON Sort E[ret] Sort P(win) Sort P5 Sort P95 Sort ½Kelly Sort BREAKEVEN" [ref=e350]:
+            - columnheader "Sort HORIZON" [ref=e351] [cursor=pointer]:
+              - generic [ref=e354]: HORIZON
+            - columnheader "Sort E[ret]" [ref=e355] [cursor=pointer]:
+              - generic [ref=e358]: E[ret]
+            - columnheader "Sort P(win)" [ref=e359] [cursor=pointer]:
+              - generic [ref=e362]: P(win)
+            - columnheader "Sort P5" [ref=e363] [cursor=pointer]:
+              - generic [ref=e366]: P5
+            - columnheader "Sort P95" [ref=e367] [cursor=pointer]:
+              - generic [ref=e370]: P95
+            - columnheader "Sort ½Kelly" [ref=e371] [cursor=pointer]:
+              - generic [ref=e374]: ½Kelly
+            - columnheader "Sort BREAKEVEN" [ref=e375] [cursor=pointer]:
+              - generic [ref=e378]: BREAKEVEN
+        - rowgroup [ref=e379]:
+          - row "1d -23.70% 0.0% -33.6% -12.3% 0.00% 60,273" [ref=e381]:
+            - cell "1d" [ref=e382]:
+              - generic [ref=e383]: 1d
+            - cell "-23.70%" [ref=e384]:
+              - generic [ref=e385]: "-23.70%"
+            - cell "0.0%" [ref=e386]:
+              - generic [ref=e387]: 0.0%
+            - cell "-33.6%" [ref=e388]:
+              - generic [ref=e389]: "-33.6%"
+            - cell "-12.3%" [ref=e390]:
+              - generic [ref=e391]: "-12.3%"
+            - cell "0.00%" [ref=e392]:
+              - generic [ref=e393]: 0.00%
+            - cell "60,273" [ref=e394]:
+              - generic [ref=e395]: 60,273
+          - row "3d -23.31% 0.2% -33.9% -11.1% 0.00% 60,273" [ref=e397]:
+            - cell "3d" [ref=e398]:
+              - generic [ref=e399]: 3d
+            - cell "-23.31%" [ref=e400]:
+              - generic [ref=e401]: "-23.31%"
+            - cell "0.2%" [ref=e402]:
+              - generic [ref=e403]: 0.2%
+            - cell "-33.9%" [ref=e404]:
+              - generic [ref=e405]: "-33.9%"
+            - cell "-11.1%" [ref=e406]:
+              - generic [ref=e407]: "-11.1%"
+            - cell "0.00%" [ref=e408]:
+              - generic [ref=e409]: 0.00%
+            - cell "60,273" [ref=e410]:
+              - generic [ref=e411]: 60,273
+          - row "7d -22.74% 1.8% -35.5% -8.4% 0.00% 60,273" [ref=e413]:
+            - cell "7d" [ref=e414]:
+              - generic [ref=e415]: 7d
+            - cell "-22.74%" [ref=e416]:
+              - generic [ref=e417]: "-22.74%"
+            - cell "1.8%" [ref=e418]:
+              - generic [ref=e419]: 1.8%
+            - cell "-35.5%" [ref=e420]:
+              - generic [ref=e421]: "-35.5%"
+            - cell "-8.4%" [ref=e422]:
+              - generic [ref=e423]: "-8.4%"
+            - cell "0.00%" [ref=e424]:
+              - generic [ref=e425]: 0.00%
+            - cell "60,273" [ref=e426]:
+              - generic [ref=e427]: 60,273
+      - generic [ref=e89]:
+        - generic [ref=e90]: "06"
+        - generic [ref=e91]: ·
+        - generic [ref=e92]: QUANT DIAGNOSTICS
+      - generic [ref=e429]:
+        - generic [ref=e430]:
+          - generic [ref=e431]: Z(30)
+          - generic [ref=e432]: "-0.73"
+        - generic [ref=e433]:
+          - generic [ref=e434]: OLS DRIFT/D
+          - generic [ref=e435]: +1.57%
+          - generic [ref=e436]: p=0.000
+        - generic [ref=e437]:
+          - generic [ref=e438]: HURST
+          - generic [ref=e439]: "0.09"
+        - generic [ref=e440]:
+          - generic [ref=e441]: VOL (ANN)
+          - generic [ref=e442]: 177.7%
+        - generic [ref=e443]:
+          - generic [ref=e444]: N STEPS
+          - generic [ref=e445]: "200"
+        - generic [ref=e446]:
+          - generic [ref=e447]: SPREAD
+          - generic [ref=e448]: 15.2%
+      - generic [ref=e94]:
+        - generic [ref=e95]: "07"
+        - generic [ref=e96]: ·
+        - generic [ref=e97]: WALK-FORWARD CV + ISOTONIC
+      - generic [ref=e98]:
+        - generic [ref=e99]:
+          - radiogroup "CI method" [ref=e100]:
+            - generic [ref=e101]: CI method
+            - generic [ref=e102]:
+              - generic [ref=e103] [cursor=pointer]:
+                - radio "Block-residual" [checked] [ref=e104]
+                - text: Block-residual
+              - generic [ref=e105] [cursor=pointer]:
+                - radio "Per-trade (iid)" [ref=e106]
+                - text: Per-trade (iid)
+          - generic [ref=e107]:
+            - generic [ref=e108]: horizon (steps)
+            - generic [ref=e109]:
+              - generic [ref=e110]:
+                - generic [ref=e112]: "1"
+                - generic [ref=e113]: "14"
+                - generic [ref=e114]: "7"
+              - generic [ref=e115]:
+                - generic [ref=e117]: "1"
+                - generic [ref=e122]: "3"
+                - generic [ref=e127]: "5"
+                - generic [ref=e132]: "7"
+                - generic [ref=e137]: "9"
+                - generic [ref=e142]: "11"
+                - generic [ref=e147]: "13"
+                - generic [ref=e152]: "14"
+            - textbox "horizon (steps)" [ref=e155]: "7"
+        - generic [ref=e449]:
+          - generic [ref=e450]:
+            - generic [ref=e451]: N TRADES
+            - generic [ref=e452]: "165"
+          - generic [ref=e453]:
+            - generic [ref=e454]: HIT RATE
+            - generic [ref=e455]: 44.2%
+          - generic [ref=e456]:
+            - generic [ref=e457]: BRIER
+            - generic [ref=e458]: "0.259"
+            - generic [ref=e459]: "[0.25, 0.27]"
+          - generic [ref=e460]:
+            - generic [ref=e461]: IC
+            - generic [ref=e462]: "-0.197"
+            - generic [ref=e463]: "[-0.29, -0.10]"
+          - generic [ref=e464]:
+            - generic [ref=e465]: CI METHOD
+            - generic [ref=e466]: BLOCK
+          - generic [ref=e467]:
+            - generic [ref=e468]: BOOT R
+            - generic [ref=e469]: "400"
+        - generic [ref=e471]:
+          - img:
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - generic: "0"
+                  - generic:
+                    - generic: "0.2"
+                  - generic:
+                    - generic: "0.4"
+                  - generic:
+                    - generic: "0.6"
+                  - generic:
+                    - generic: "0.8"
+                  - generic:
+                    - generic: "1"
+                - generic:
+                  - generic:
+                    - generic: "0"
+                  - generic:
+                    - generic: "0.2"
+                  - generic:
+                    - generic: "0.4"
+                  - generic:
+                    - generic: "0.6"
+                  - generic:
+                    - generic: "0.8"
+                  - generic:
+                    - generic: "1"
+          - img:
+            - generic:
+              - generic [ref=e488]:
+                - generic [ref=e490]: pre-cal
+                - generic [ref=e497]: post-cal (isotonic)
+              - generic:
+                - generic: forecast P(up)
+              - generic:
+                - generic: observed rate
+          - img
+      - generic [ref=e157]:
+        - generic [ref=e158]: "08"
+        - generic [ref=e159]: ·
+        - generic [ref=e160]: PRE-COMMIT CHECKLIST
+      - list [ref=e162]:
+        - listitem [ref=e163]:
+          - link "ShowZone (price tracker)" [ref=e164] [cursor=pointer]:
+            - /url: https://showzone.com
+        - listitem [ref=e165]:
+          - link "ShowDD (DB)" [ref=e166] [cursor=pointer]:
+            - /url: https://showdd.io
+        - listitem [ref=e167]:
+          - link "Baseball Reference" [ref=e168] [cursor=pointer]:
+            - /url: https://www.baseball-reference.com
+      - generic [ref=e241]:
+        - generic [ref=e242]:
+          - generic [ref=e243]: "09"
+          - generic [ref=e244]: ·
+          - generic [ref=e245]: LLM CROSS-CHECK
+        - generic [ref=e246]: Set ANTHROPIC_API_KEY to enable claude-opus-4-7 cross-checks.
+  - log [ref=e169]
+  - log [ref=e170]
+  - img [ref=e247]

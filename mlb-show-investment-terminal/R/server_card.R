@@ -157,31 +157,67 @@ server_card <- function(input, output, session, app_state) {
                     ci_method = input$wf_ci_method)
   })
 
+  gates <- shiny::reactive({
+    L <- listing()
+    ph <- price_history()
+    w <- tryCatch(wfcv(), error = function(e) NULL)
+    validation_gates(price_history = ph, listing = L, wfcv = w,
+                     horizon = input$wf_horizon)
+  })
+
+  verdict <- shiny::reactive({ gating_verdict(gates()) })
+
   recommendation <- shiny::reactive({
     L <- listing()
     e <- ev_horizons()
     d <- diagnostics()
-    w <- shiny::isolate(tryCatch(wfcv(), error = function(e) NULL))
+    w <- tryCatch(wfcv(), error = function(e) NULL)
+    v <- verdict()
+    if (v$status == "NOT INVESTABLE") {
+      return(list(score = NA_integer_, action = "ABSTAIN",
+                  flags = list(), verdict = v))
+    }
     ev7 <- e[e$horizon == "7d", "e_ret"]
-    recommendation_score(
+    base <- recommendation_score(
       ev = ev7, drift_p = d$p_hac,
       drift_slope = d$slope, z30 = d$z30,
       hurst = d$hurst, spread_pct = d$spread_pct,
       cv_ic_point = w$ic_point %||% NA_real_,
-      cv_ic_upper = w$ic_ci %||% c(NA_real_, NA_real_) |> (\(x) x[2])()
+      cv_ic_upper = if (length(w$ic_ci %||% NULL) == 2L) w$ic_ci[2]
+                    else NA_real_
     )
+    if (v$status == "OBSERVATIONAL ONLY") {
+      # Suppress action verb but keep direction in score sign.
+      direction <- if (is.na(base$score)) "OBSERVE" else
+        if (base$score > 0) "OBSERVE ▲" else
+        if (base$score < 0) "OBSERVE ▼" else "OBSERVE"
+      base$action <- direction
+    }
+    base$verdict <- v
+    base
   })
 
   # Render: target / recommendation -------------------------------------------
   output$card_target_summary <- shiny::renderUI({
     L <- listing()
     rec <- recommendation()
+    g <- gates()
+    v <- verdict()
     if (is.null(L)) {
       return(htmltools::tags$div(class = "muted",
                                  "load a card to see the verdict"))
     }
     item <- L$item %||% list()
     liq <- liquidity_score(L$completed_orders %||% list())
+    score_text <- if (is.na(rec$score)) "score — (gated)" else
+      sprintf("score %+d", rec$score)
+    verdict_pill <- pill(v$status, v$badge_tone)
+    reasons_block <- if (length(v$reasons) > 0L) {
+      htmltools::tags$div(class = "verdict-reasons",
+        htmltools::tags$div(class = "verdict-headline", v$headline),
+        htmltools::tags$ul(class = "verdict-reason-list",
+          lapply(v$reasons, function(r) htmltools::tags$li(r))))
+    } else NULL
 
     htmltools::tagList(
       htmltools::tags$div(class = "target-head",
@@ -189,22 +225,27 @@ server_card <- function(input, output, session, app_state) {
         pill(item$rarity %||% "?", rarity_pill_tone(item$rarity)),
         htmltools::tags$span(class = "target-ovr",
                              paste0("OVR ", item$ovr %||% "?")),
-        htmltools::tags$span(class = "target-team", item$team %||% "")
+        htmltools::tags$span(class = "target-team", item$team %||% ""),
+        verdict_pill
       ),
       htmltools::tags$div(class = "target-signal-row",
         signal_pill(rec$action),
         htmltools::tags$div(class = "score-density",
-          htmltools::tags$div(class = "score",
-                              sprintf("score %+d", rec$score)),
+          htmltools::tags$div(class = "score", score_text),
           density_dots(liq$score)
         )
       ),
+      reasons_block,
       flag_list(rec$flags),
       htmltools::tags$div(class = "stat-grid",
         stat("ASK", fmt_stubs(L$best_sell_price)),
         stat("BID", fmt_stubs(L$best_buy_price)),
         stat("SPREAD", fmt_pct(diagnostics()$spread_pct))
-      )
+      ),
+      htmltools::tags$div(class = "section-header data-quality-header",
+        htmltools::tags$span(class = "section-num", "DQ"),
+        htmltools::tags$span(class = "section-title", "DATA QUALITY")),
+      gates_summary_pills(g)
     )
   })
 
@@ -255,6 +296,11 @@ server_card <- function(input, output, session, app_state) {
   # EV table -------------------------------------------------------------------
   output$card_ev_table <- reactable::renderReactable({
     e <- ev_horizons()
+    v <- verdict()
+    if (v$status == "NOT INVESTABLE") {
+      # Blank actionable numbers — show structure only.
+      e[, c("e_ret","p_win","p5","p95","kelly_half","breakeven")] <- NA_real_
+    }
     reactable::reactable(
       e,
       defaultColDef = reactable::colDef(
@@ -393,6 +439,7 @@ server_card <- function(input, output, session, app_state) {
     htmltools::tagList(
       section_header(9, "LLM CROSS-CHECK"),
       htmltools::tags$div(class = "panel llm-block",
+        not_a_signal_badge(),
         if (is.null(summary_text)) {
           htmltools::tags$div(class = "muted", "LLM unavailable.")
         } else htmltools::tags$p(summary_text)

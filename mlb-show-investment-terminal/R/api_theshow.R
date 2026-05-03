@@ -219,3 +219,73 @@ theshow_clear_cache <- function() {
   if (!is.null(.theshow_cache)) .theshow_cache$reset()
   invisible(NULL)
 }
+
+#' Discover top-of-market UUIDs for a given rarity, live from listings.json.
+#'
+#' No bundled UUID list — UUIDs change per game year and per attribute update,
+#' so the universe is re-discovered on demand. Memoised with 5-min TTL because
+#' the universe shifts slowly (top-N composition is stable across short
+#' windows).
+#'
+#' @param rarity character; one of "Diamond"/"Gold"/"Silver"/"Bronze".
+#' @param pages integer >= 1; number of `listings.json?page=` pages to pull.
+#' @param max_per_page integer; cap on UUIDs returned per page.
+#' @return data.frame(uuid, name, rarity, ovr, team, ask, bid).
+#' @export
+discover_top_listings_uncached <- function(
+  rarity = c("Diamond","Gold","Silver","Bronze"),
+  pages = 1L, max_per_page = 25L) {
+  rarity <- match.arg(rarity)
+  rows <- list()
+  for (p in seq_len(max(1L, as.integer(pages)))) {
+    body <- theshow_request(
+      "apis/listings.json",
+      query = list(type = "mlb_card", page = p)
+    )
+    listings <- body$listings %||% list()
+    if (length(listings) == 0L) break
+    for (L in listings) {
+      it <- L$item %||% list()
+      r <- it$rarity %||% NA_character_
+      if (!is.na(r) && tolower(r) == tolower(rarity)) {
+        rows[[length(rows) + 1L]] <- data.frame(
+          uuid = it$uuid %||% NA_character_,
+          name = it$name %||% L$listing_name %||% NA_character_,
+          rarity = r,
+          ovr = as.integer(it$ovr %||% NA_integer_),
+          team = it$team %||% NA_character_,
+          ask = as.numeric(L$best_sell_price %||% NA_real_),
+          bid = as.numeric(L$best_buy_price %||% NA_real_),
+          stringsAsFactors = FALSE
+        )
+      }
+      if (length(rows) >= max_per_page * p) break
+    }
+  }
+  if (length(rows) == 0L) {
+    return(data.frame(uuid = character(0), name = character(0),
+                      rarity = character(0), ovr = integer(0),
+                      team = character(0), ask = numeric(0),
+                      bid = numeric(0)))
+  }
+  df <- do.call(rbind, rows)
+  df <- df[!is.na(df$uuid) & vapply(df$uuid, is_valid_uuid, logical(1)), ,
+           drop = FALSE]
+  df <- df[order(-df$ask), , drop = FALSE]  # sort by ask desc
+  rownames(df) <- NULL
+  utils::head(df, max_per_page * pages)
+}
+
+#' @export
+discover_top_listings <- function(rarity = "Diamond",
+                                  pages = 1L, max_per_page = 25L) {
+  .theshow_init_cache()
+  if (!is.function(.discover_memoised)) {
+    .discover_memoised <<- memoise::memoise(
+      discover_top_listings_uncached,
+      cache = .theshow_cache
+    )
+  }
+  .discover_memoised(rarity, pages, max_per_page)
+}
+.discover_memoised <- NULL

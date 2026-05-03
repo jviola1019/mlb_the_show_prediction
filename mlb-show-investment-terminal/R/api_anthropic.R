@@ -35,7 +35,11 @@ anthropic_card_summary <- function(card_meta, forecast_summary,
     "Reply in ONE paragraph (<=100 words). State whether the recommendation ",
     "is consistent with the metrics, name the strongest supporting and ",
     "strongest contradicting signal, and end with one sentence on what ",
-    "would change your mind. No hype, no hedging. No bullet points."
+    "would change your mind. No hype, no hedging. No bullet points. ",
+    "CRITICAL: Your output is COMMENTARY, NOT a trading signal. Never tell ",
+    "the user what to do; describe what the metrics imply. The statistical ",
+    "validation gates upstream of you have final authority on whether any ",
+    "action is published — your role is interpretation only."
   )
 
   user_text <- sprintf(

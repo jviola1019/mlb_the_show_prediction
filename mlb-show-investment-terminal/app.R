@@ -55,16 +55,28 @@ ui <- bslib::page_navbar(
   ),
   ui_card_tab(),
   ui_ovr_tab(),
+  ui_scan_tab(),
   ui_validate_tab(),
   ui_method_tab()
 )
 
 server <- function(input, output, session) {
+  loaded_uuids_rv <- shiny::reactiveVal(character(0))
   app_state <- shiny::reactiveValues(
     roster_updates = .roster_updates,
     current_listing = NULL,
-    current_price_history = function() NULL
+    current_price_history = function() NULL,
+    loaded_uuids = loaded_uuids_rv
   )
+
+  # Track every UUID the user loads so SESSION HISTORY scan mode has data.
+  shiny::observeEvent(input$card_uuid, {
+    u <- input$card_uuid
+    if (is_valid_uuid(u)) {
+      cur <- loaded_uuids_rv()
+      if (!u %in% cur) loaded_uuids_rv(c(cur, u))
+    }
+  }, ignoreInit = TRUE)
 
   # CARD tab
   server_card(input, output, session, app_state)
@@ -85,6 +97,7 @@ server <- function(input, output, session) {
 
   server_ovr(input, output, session, app_state)
   server_validate(input, output, session, app_state)
+  server_scan(input, output, session, app_state)
 
   # Hide bootscreen ~600ms after first session render
   session$onFlushed(function() {

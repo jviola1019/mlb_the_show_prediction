@@ -1,0 +1,50 @@
+# R build artifacts
+.Rhistory
+.RData
+.Rproj.user/
+.Ruserdata
+*.Rcheck/
+
+# renv local libraries (lock file is committed)
+renv/library/
+renv/staging/
+renv/python/
+renv/local/
+
+# Secrets — never commit
+.Renviron
+.Renviron.local
+**/*.local.*
+**/secrets/**
+
+# Logs and runtime artifacts
+*.log
+log/
+logs/
+
+# Playwright / browser smoke artifacts
+.playwright-mcp/
+playwright-report/
+test-results/
+smoke-*.png
+page-*.png
+*.trace.zip
+
+# Synthetic data must not be re-introduced
+data/synthetic_*.rds
+data/synthetic_*.csv
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Build outputs
+*.zip
+*.tar.gz
+mlb-show-investment-terminal.zip
+BUILD-REPORT.local.md
