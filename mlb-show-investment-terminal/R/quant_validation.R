@@ -19,16 +19,23 @@
 #'   - NOT INVESTABLE     — any of gates 1–4 fails. Action verb suppressed,
 #'                         EV table blanked, ABSTAIN verdict.
 
-#' Compute the six gates.
+#' Compute the seven gates.
+#'
+#' Gate 7 (calibration_present) is checked when the caller supplies a
+#' `calibration_ok` argument. Default TRUE so older call sites that don't
+#' yet pass it remain backwards-compatible at the same governance level
+#' as before.
 #'
 #' @param price_history data.frame (timestamp, price), or NULL.
 #' @param listing list (`get_listing()` output) or NULL.
 #' @param wfcv list (`walk_forward_cv()` output) or NULL.
 #' @param horizon integer.
+#' @param calibration_ok logical; did isotonic calibration run cleanly?
 #' @param now POSIXct (default Sys.time()).
 #' @return named list of `list(passed = logical, reason = character)`.
 #' @export
 validation_gates <- function(price_history, listing, wfcv, horizon = 7L,
+                             calibration_ok = TRUE,
                              now = Sys.time()) {
   gate <- function(passed, reason = "") {
     list(passed = isTRUE(passed), reason = if (passed) "ok" else reason)
@@ -105,22 +112,43 @@ validation_gates <- function(price_history, listing, wfcv, horizon = 7L,
     width_reason <- "CV unavailable; cannot evaluate CI width"
   }
 
+  # Gate 7: calibration improves out-of-sample Brier.
+  # `calibration_ok` may be a bare logical (older callers) OR a list of the
+  # shape returned by `calibration_held_out_check()`. The richer form lets
+  # us print the actual Brier delta in the failure reason.
+  if (is.list(calibration_ok)) {
+    cal_ok     <- isTRUE(calibration_ok$ok)
+    cal_reason <- calibration_ok$reason %||% (if (cal_ok) "ok" else
+      "isotonic calibration did not improve held-out Brier")
+  } else {
+    cal_ok <- isTRUE(calibration_ok)
+    cal_reason <- if (cal_ok) "ok" else
+      "isotonic calibration unavailable or did not improve held-out Brier"
+  }
+
   list(
     schema_valid              = gate(schema_ok,  schema_reason),
     history_sufficient        = gate(hist_ok,    hist_reason),
     data_fresh                = gate(fresh_ok,   fresh_reason),
     cv_available              = gate(cv_ok,      cv_reason),
     cv_skill_not_negative_sig = gate(skill_ok,   skill_reason),
-    ci_width_acceptable       = gate(width_ok,   width_reason)
+    ci_width_acceptable       = gate(width_ok,   width_reason),
+    calibration_present       = gate(cal_ok,     cal_reason)
   )
 }
 
 #' Map gate results to a verdict.
+#' Calibration absence (gate 7) is treated as a soft failure — the
+#' bootstrap can still report direction, but staking math and Kelly
+#' fractions should not be published without calibrated probabilities.
 #' @export
 gating_verdict <- function(gates) {
   hard_keys <- c("schema_valid", "history_sufficient", "data_fresh",
                  "cv_available")
-  soft_keys <- c("cv_skill_not_negative_sig", "ci_width_acceptable")
+  soft_keys <- c("cv_skill_not_negative_sig", "ci_width_acceptable",
+                 "calibration_present")
+  # Tolerate older callers that don't supply the calibration gate.
+  soft_keys <- soft_keys[soft_keys %in% names(gates)]
   hard_pass <- all(vapply(gates[hard_keys], function(g) g$passed, logical(1)))
   soft_pass <- all(vapply(gates[soft_keys], function(g) g$passed, logical(1)))
   failed <- names(gates)[!vapply(gates, function(g) g$passed, logical(1))]
@@ -136,7 +164,7 @@ gating_verdict <- function(gates) {
          reasons = reasons, failed = failed)
   } else {
     list(status = "INVESTABLE", badge_tone = "bull",
-         headline = "INVESTABLE — all 6 gates passed",
+         headline = "INVESTABLE — all 7 gates passed",
          reasons = character(0), failed = character(0))
   }
 }
@@ -150,7 +178,8 @@ gates_summary_pills <- function(gates) {
     data_fresh                = "FRESHNESS",
     cv_available              = "CV AVAILABLE",
     cv_skill_not_negative_sig = "CV SKILL",
-    ci_width_acceptable       = "CI WIDTH"
+    ci_width_acceptable       = "CI WIDTH",
+    calibration_present       = "CALIBRATION"
   )
   htmltools::tags$div(
     class = "gates-panel",

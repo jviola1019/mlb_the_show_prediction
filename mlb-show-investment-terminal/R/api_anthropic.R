@@ -23,43 +23,76 @@ anthropic_available <- function() {
 #' @param card_meta list with name, rarity, ovr, team, series.
 #' @param forecast_summary list with ev, p_profit, p_up, drift_p, hurst.
 #' @param recommendation list (output of recommendation_score()).
+#' @param verdict optional list (output of `gating_verdict()`); if NULL, the
+#'   LLM is told no verdict context was supplied.
+#' @param gates optional named list (output of `validation_gates()`).
 #' @return character (one paragraph) or NULL on any failure.
 #' @export
 anthropic_card_summary <- function(card_meta, forecast_summary,
-                                   recommendation) {
+                                   recommendation,
+                                   verdict = NULL, gates = NULL) {
   if (!anthropic_available()) return(NULL)
 
   system_text <- paste0(
     "You are a sober quant analyst reviewing a card-market trade. ",
-    "You are given the model's recommendation and supporting metrics. ",
-    "Reply in ONE paragraph (<=100 words). State whether the recommendation ",
-    "is consistent with the metrics, name the strongest supporting and ",
-    "strongest contradicting signal, and end with one sentence on what ",
-    "would change your mind. No hype, no hedging. No bullet points. ",
+    "You are given the model's recommendation, supporting metrics, AND the ",
+    "exact verdict + failed-gate names from the upstream statistical ",
+    "validation layer. Reply in ONE paragraph (<=120 words). ",
+    "If the verdict is NOT INVESTABLE, your paragraph must open by ",
+    "explaining which named gates failed and why that means the user ",
+    "cannot act on this card; do not estimate EV or direction. ",
+    "If the verdict is OBSERVATIONAL ONLY, describe the direction and the ",
+    "reason the model can only observe (e.g. negative-skill CV, wide CIs). ",
+    "If the verdict is INVESTABLE, name the strongest supporting and ",
+    "strongest contradicting signal. End with one sentence on what would ",
+    "change your read. No hype, no hedging, no bullet points. ",
     "CRITICAL: Your output is COMMENTARY, NOT a trading signal. Never tell ",
     "the user what to do; describe what the metrics imply. The statistical ",
-    "validation gates upstream of you have final authority on whether any ",
-    "action is published — your role is interpretation only."
+    "validation gates upstream of you have final authority — your role is ",
+    "interpretation only."
   )
+
+  failed_gates_csv <- if (!is.null(verdict)) {
+    paste(verdict$failed %||% character(0), collapse = ", ")
+  } else "(no verdict supplied)"
+  failed_reasons <- if (!is.null(verdict) && length(verdict$reasons %||% c()) > 0L) {
+    paste(verdict$reasons, collapse = " | ")
+  } else "(none)"
+  verdict_status <- if (!is.null(verdict)) verdict$status %||% "(unknown)"
+                    else "(no verdict supplied)"
+  cv_skill_pass <- if (!is.null(gates) && !is.null(gates$cv_skill_not_negative_sig))
+                     gates$cv_skill_not_negative_sig$passed else NA
+  cal_pass <- if (!is.null(gates) && !is.null(gates$calibration_present))
+                gates$calibration_present$passed else NA
 
   user_text <- sprintf(
     paste0("Card: %s | rarity=%s | ovr=%s | team=%s\n",
-           "Recommendation: %s (score=%d)\n",
+           "Verdict: %s\n",
+           "Failed gates: %s\n",
+           "Failure reasons: %s\n",
+           "Recommendation: %s (score=%s)\n",
            "Forecast: 7d EV=%.1f%% | P(profit)=%.1f%% | P(up)=%.1f%% | ",
            "drift_p=%s | hurst=%.2f\n",
+           "CV skill gate passed: %s | calibration gate passed: %s\n",
            "Flags: %s"),
     card_meta$name %||% "(unknown)",
     card_meta$rarity %||% "?",
     card_meta$ovr %||% "?",
     card_meta$team %||% "?",
-    recommendation$action,
-    recommendation$score,
+    verdict_status,
+    failed_gates_csv,
+    failed_reasons,
+    recommendation$action %||% "(none)",
+    if (is.na(recommendation$score %||% NA)) "NA"
+      else as.character(recommendation$score),
     100 * (forecast_summary$ev %||% 0),
     100 * (forecast_summary$p_profit %||% 0),
     100 * (forecast_summary$p_up %||% 0),
     if (is.na(forecast_summary$drift_p %||% NA)) "NA"
       else sprintf("%.3f", forecast_summary$drift_p),
     forecast_summary$hurst %||% NA_real_,
+    if (is.na(cv_skill_pass)) "unknown" else if (cv_skill_pass) "yes" else "no",
+    if (is.na(cal_pass)) "unknown" else if (cal_pass) "yes" else "no",
     paste(vapply(recommendation$flags %||% list(),
                  function(f) f$text %||% "", character(1)),
           collapse = ", ")

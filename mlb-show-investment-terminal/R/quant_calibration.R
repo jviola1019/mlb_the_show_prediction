@@ -152,3 +152,84 @@ reliability_diagram_data <- function(preds, truth, n_bins = 5L) {
   }
   out
 }
+
+#' Hold-out calibration check.
+#'
+#' Time-ordered split (NO shuffle — these are walk-forward trades). Fit
+#' isotonic on the first half, apply to the second half, compare Brier.
+#' Pass condition: post-cal Brier <= pre-cal Brier on the held-out half.
+#'
+#' This replaces the weaker "did isotonic run without error?" gate.
+#' Calibration that doesn't actually improve out-of-sample Brier is
+#' worse than no calibration; the gate must reflect that.
+#'
+#' @param p_up numeric in [0,1] — pre-calibration forecast probabilities
+#'   in trade order (time-ascending).
+#' @param realized_up integer 0/1 outcomes, same length and order.
+#' @param min_n integer; minimum total trades. Below this the gate fails
+#'   with a stated reason.
+#' @return list(ok, reason, brier_pre, brier_post, delta, n_train, n_test).
+#'   `delta` is post - pre (negative is good).
+#' @export
+calibration_held_out_check <- function(p_up, realized_up, min_n = 30L) {
+  out <- list(ok = FALSE, reason = "n/a",
+              brier_pre = NA_real_, brier_post = NA_real_,
+              delta = NA_real_, n_train = 0L, n_test = 0L)
+
+  p_up <- as.numeric(p_up)
+  truth <- as.integer(realized_up)
+  n <- length(p_up)
+  if (length(truth) != n || n < min_n) {
+    out$reason <- sprintf("only %d trades (need >= %d)", n, min_n)
+    return(out)
+  }
+  # Need variance in train and test to fit/evaluate isotonic at all.
+  split <- floor(n / 2)
+  train_idx <- seq_len(split)
+  test_idx  <- seq.int(split + 1L, n)
+  if (stats::sd(p_up[train_idx]) <= .Machine$double.eps) {
+    out$reason <- "train-half forecasts are constant (cannot fit isotonic)"
+    return(out)
+  }
+
+  cal_test <- tryCatch({
+    # Fit isotonic on train, then map test predictions through the train
+    # mapping by interpolation. probably::cal_apply needs a fitted object,
+    # so we build the train mapping then interpolate manually for the test
+    # half — this preserves time-ordered out-of-sample evaluation.
+    fit_train <- isotonic_via_probably(p_up[train_idx], truth[train_idx])
+    if (!is.numeric(fit_train) || any(!is.finite(fit_train))) {
+      stop("probably calibration produced non-finite values")
+    }
+    ord <- order(p_up[train_idx])
+    stats::approx(
+      x = p_up[train_idx][ord],
+      y = fit_train[ord],
+      xout = p_up[test_idx],
+      rule = 2,
+      ties = mean
+    )$y
+  }, error = function(e) NULL)
+
+  if (is.null(cal_test) || any(!is.finite(cal_test))) {
+    out$reason <- "isotonic fit on train half failed or produced NaN"
+    return(out)
+  }
+
+  brier_pre  <- mean((p_up[test_idx] - truth[test_idx])^2)
+  brier_post <- mean((cal_test       - truth[test_idx])^2)
+  out$brier_pre <- brier_pre
+  out$brier_post <- brier_post
+  out$delta <- brier_post - brier_pre
+  out$n_train <- length(train_idx)
+  out$n_test  <- length(test_idx)
+  out$ok <- is.finite(out$delta) && out$delta <= 0
+  out$reason <- if (out$ok) {
+    sprintf("Brier %.3f -> %.3f (improvement %.3f) on %d held-out trades",
+            brier_pre, brier_post, -out$delta, length(test_idx))
+  } else {
+    sprintf("Brier %.3f -> %.3f (DEGRADED by %.3f) on %d held-out trades",
+            brier_pre, brier_post, out$delta, length(test_idx))
+  }
+  out
+}

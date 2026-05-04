@@ -329,6 +329,65 @@ a:hover { text-shadow: var(--neon-emerald-glow); }
   font-weight: 700;
 }
 
+/* ============================================================ *
+ *  Hardening sprint — visual state for verdict gating
+ *  When the body has data-verdict="NOT INVESTABLE" or
+ *  "OBSERVATIONAL ONLY", panels downstream of the TARGET panel
+ *  on the CARD tab take on a blocked/cautioned look so a glance
+ *  cannot mistake them for an actionable signal.
+ * ============================================================ */
+
+body[data-verdict="NOT INVESTABLE"] .card-tab .panel:not(.target-panel) {
+  position: relative;
+  border-color: rgba(244,63,94,0.35);
+  background:
+    repeating-linear-gradient(135deg,
+      rgba(244,63,94,0.06) 0 6px,
+      rgba(0,0,0,0) 6px 14px),
+    var(--bg-soft);
+}
+body[data-verdict="NOT INVESTABLE"] .card-tab .panel:not(.target-panel)::after {
+  content: "BLOCKED · ABSTAIN";
+  position: absolute;
+  top: 6px; right: 10px;
+  font-size: 0.55rem;
+  letter-spacing: 0.3em;
+  color: #fda4af;
+  text-shadow: var(--neon-rose-glow);
+  pointer-events: none;
+}
+body[data-verdict="NOT INVESTABLE"] .card-tab .stat-value,
+body[data-verdict="NOT INVESTABLE"] .card-tab .rt-td-inner {
+  color: var(--dim) !important;
+  text-shadow: none !important;
+}
+
+body[data-verdict="OBSERVATIONAL ONLY"] .card-tab .panel:not(.target-panel) {
+  border-color: rgba(251,191,36,0.45);
+}
+body[data-verdict="OBSERVATIONAL ONLY"] .card-tab .panel:not(.target-panel)::after {
+  content: "OBSERVATIONAL · NO ACTION";
+  position: absolute;
+  top: 6px; right: 10px;
+  font-size: 0.55rem;
+  letter-spacing: 0.3em;
+  color: #fcd34d;
+  pointer-events: none;
+}
+body[data-verdict="OBSERVATIONAL ONLY"] .card-tab .rt-td-inner {
+  color: #d4d4d8 !important;
+}
+
+/* Verdict pill emphasis when blocked */
+body[data-verdict="NOT INVESTABLE"] .pill-bear {
+  box-shadow: 0 0 0 1px rgba(244,63,94,0.5),
+              0 0 12px rgba(244,63,94,0.25) inset;
+}
+body[data-verdict="OBSERVATIONAL ONLY"] .pill-warn {
+  box-shadow: 0 0 0 1px rgba(251,191,36,0.5),
+              0 0 12px rgba(251,191,36,0.25) inset;
+}
+
 /* ---------- Target panel layout ----------- */
 .target-head {
   display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem;

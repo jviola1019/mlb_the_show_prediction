@@ -27,4 +27,13 @@
     clearTimeout(window.__vpDebounce);
     window.__vpDebounce = setTimeout(send, 200);
   });
+
+  /* H8: receive verdict from server and stamp it on <body> for CSS gating. */
+  document.addEventListener("shiny:connected", function () {
+    if (!window.Shiny) return;
+    Shiny.addCustomMessageHandler("setVerdict", function (msg) {
+      var status = (msg && msg.status) || "";
+      document.body.setAttribute("data-verdict", status);
+    });
+  });
 })();
