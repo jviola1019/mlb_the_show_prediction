@@ -3,6 +3,9 @@
 Forecast diagnostics are intentionally separate from executable flip decisions.
 They can describe price-history direction and uncertainty, but never overwrite
 after-tax bid/ask flip math.
+
+Validation gates and verdict logic are delegated to ``governance.py`` (the
+canonical 7-gate system, ported from R/quant_validation.R).
 """
 
 from __future__ import annotations
@@ -11,6 +14,15 @@ import math
 import random
 from statistics import mean, median, stdev
 from typing import Any
+
+from .governance import (
+    gates_summary_pills,
+    gating_verdict,
+    price_history_records,
+    validation_gates,
+)
+
+DEFAULT_TAX_RATE = 0.10  # The Show market tax (10% on completed sale)
 
 
 def _num(value: Any) -> float | None:
@@ -191,12 +203,30 @@ def _path_returns(
     *,
     current: float,
     spread_ratio: float,
+    tax_rate: float = DEFAULT_TAX_RATE,
 ) -> list[float]:
-    return [((path[-1] * spread_ratio * 0.90) - current) / current for path in paths if path]
+    """Convert simulated terminal prices into after-tax-after-spread returns.
+
+    Parametrizes the market-tax factor (previously hard-coded as 0.90 == 1-10%).
+    Mirrors R/quant_flip.R::flip_economics(tax_rate=...).
+    """
+    sell_factor = max(0.0, 1.0 - float(tax_rate))
+    return [
+        ((path[-1] * spread_ratio * sell_factor) - current) / current
+        for path in paths
+        if path
+    ]
 
 
-def _horizon_summary(paths: list[list[float]], *, current: float, spread_ratio: float, horizon: int) -> dict[str, Any]:
-    returns = _path_returns(paths, current=current, spread_ratio=spread_ratio)
+def _horizon_summary(
+    paths: list[list[float]],
+    *,
+    current: float,
+    spread_ratio: float,
+    horizon: int,
+    tax_rate: float = DEFAULT_TAX_RATE,
+) -> dict[str, Any]:
+    returns = _path_returns(paths, current=current, spread_ratio=spread_ratio, tax_rate=tax_rate)
     if not returns:
         return {"horizon": horizon, "status": "unavailable"}
     expected_ret = mean(returns)
@@ -335,35 +365,52 @@ def reliability_bins(trades: list[dict[str, Any]], *, n_bins: int = 5) -> dict[s
     return {"status": "ok", "bins": bins}
 
 
-def validation_gates(wfcv: dict[str, Any], diagnostics: dict[str, Any]) -> dict[str, Any]:
-    failed: list[str] = []
-    if wfcv.get("status") != "ok":
-        failed.append("cv_available")
-    if wfcv.get("ic_point") is not None and wfcv.get("ic_point") < -0.05:
-        failed.append("cv_skill_not_negative")
-    if wfcv.get("n_trades", 0) and wfcv.get("n_trades", 0) < 25:
-        failed.append("history_sufficient")
-    if diagnostics.get("spread_pct") is None:
-        failed.append("spread_available")
-    return {
-        "status": "pass" if not failed else "diagnostic_warning",
-        "failed": failed,
-        "failed_csv": ",".join(failed),
-        "note": "Forecast gates do not block executable flip or upgrade signals.",
-    }
+def _calibration_clean(calibration: dict[str, Any] | None) -> dict[str, Any]:
+    """Return a structured calibration_ok payload for governance.validation_gates.
+
+    A calibration is considered "present" when reliability binning produced at
+    least 5 non-empty bins with finite mean_pred values. This is the diagnostic
+    proxy for the held-out isotonic check used by R/quant_validation.R.
+    """
+    if not isinstance(calibration, dict) or calibration.get("status") != "ok":
+        return {"ok": False, "reason": "calibration unavailable"}
+    bins = calibration.get("bins") or []
+    usable = [
+        b for b in bins
+        if isinstance(b, dict)
+        and b.get("n", 0) > 0
+        and isinstance(b.get("mean_pred"), (int, float))
+        and math.isfinite(float(b["mean_pred"]))
+        and isinstance(b.get("observed_rate"), (int, float))
+        and math.isfinite(float(b["observed_rate"]))
+    ]
+    if len(usable) < 5:
+        return {
+            "ok": False,
+            "reason": f"only {len(usable)} usable reliability bins (need >=5)",
+        }
+    return {"ok": True, "reason": "ok"}
 
 
-def tier_from_diagnostics(wfcv: dict[str, Any], gates: dict[str, Any]) -> str:
-    if gates.get("failed"):
+def tier_from_verdict(wfcv: dict[str, Any], verdict: dict[str, Any]) -> str:
+    """Tier label derived from CV depth and the governance verdict.
+
+    NOT INVESTABLE -> UNRATED. OBSERVATIONAL ONLY -> BRONZE. INVESTABLE cards
+    are graded on CV depth + IC/Brier point estimates.
+    """
+    status = (verdict or {}).get("status")
+    if status == "NOT INVESTABLE":
+        return "UNRATED"
+    if status == "OBSERVATIONAL ONLY":
         return "BRONZE"
-    n = int(wfcv.get("n_trades") or 0)
-    ic = wfcv.get("ic_point")
-    brier = wfcv.get("brier_point")
+    n = int((wfcv or {}).get("n_trades") or 0)
+    ic = (wfcv or {}).get("ic_point")
+    brier = (wfcv or {}).get("brier_point")
+    if n >= 100 and ic is not None and ic >= 0.10 and brier is not None and brier <= 0.22:
+        return "DIAMOND"
     if n >= 50 and ic is not None and ic >= 0.05 and brier is not None and brier <= 0.24:
         return "GOLD"
-    if n >= 25:
-        return "SILVER"
-    return "BRONZE"
+    return "SILVER"
 
 
 def forecast_diagnostics(
@@ -372,20 +419,39 @@ def forecast_diagnostics(
     horizon: int = 7,
     n_sims: int = 600,
     seed: int = 1701,
+    tax_rate: float = DEFAULT_TAX_RATE,
 ) -> dict[str, Any]:
+    """Run the full forecast + governance pipeline for a listing payload.
+
+    The output always contains a top-level ``verdict`` block produced by the
+    7-gate governance system (governance.validation_gates / gating_verdict).
+    Callers (React UI, scan partitioner) must read ``verdict.status`` and
+    blank Kelly/EV cells under OBSERVATIONAL ONLY / NOT INVESTABLE.
+    """
     prices = extract_prices(listing)
     item = listing.get("item") or {}
     ask = _num(listing.get("best_sell_price"))
     bid = _num(listing.get("best_buy_price"))
     current = ask or (prices[-1] if prices else None)
     rets = log_returns(prices)
+    history_records = price_history_records(listing)
+
     if current is None or current <= 0 or len(rets) < 8:
+        gates = validation_gates(
+            history_records,
+            listing,
+            wfcv=None,
+            horizon=horizon,
+            calibration_ok=False,
+        )
+        verdict = gating_verdict(gates)
         return {
             "status": "unavailable",
             "reason": "need at least 8 valid price returns",
             "diagnostic_only": True,
             "n_prices": len(prices),
             "horizon": horizon,
+            "tax_rate": tax_rate,
             "price_history": price_history_summary(prices),
             "cone": [],
             "horizons": [],
@@ -396,23 +462,16 @@ def forecast_diagnostics(
                 "n_trades": 0,
             },
             "calibration": {"status": "unavailable", "bins": []},
-            "gates": {
-                "status": "diagnostic_warning",
-                "failed": ["history_sufficient", "cv_available"],
-                "failed_csv": "history_sufficient,cv_available",
-                "note": "Forecast gates do not block executable flip or upgrade signals.",
-            },
-            "tier": "UNRATED",
-            "verdict": {
-                "status": "OBSERVATIONAL ONLY",
-                "reason": "forecast diagnostics unavailable",
-            },
+            "gates": gates,
+            "gate_pills": gates_summary_pills(gates),
+            "tier": tier_from_verdict({}, verdict),
+            "verdict": verdict,
         }
 
     block_len = max(3, int(len(rets) ** 0.4))
     spread_ratio = (bid / ask) if ask and bid and ask > 0 and bid > 0 else 0.9
     paths = _simulate_paths(current, rets, horizon=horizon, n_sims=n_sims, seed=seed)
-    returns = _path_returns(paths, current=current, spread_ratio=spread_ratio)
+    returns = _path_returns(paths, current=current, spread_ratio=spread_ratio, tax_rate=tax_rate)
     expected_ret = mean(returns)
     p_profit = sum(1 for r in returns if r > 0) / len(returns)
     direction = "FORECAST FLAT"
@@ -423,14 +482,22 @@ def forecast_diagnostics(
     diagnostics = quant_diagnostics(prices, ask=ask, bid=bid)
     wfcv = walk_forward_cv(prices)
     calibration = reliability_bins(wfcv.get("trades", []))
-    gates = validation_gates(wfcv, diagnostics)
-    tier = tier_from_diagnostics(wfcv, gates)
+    gates = validation_gates(
+        history_records,
+        listing,
+        wfcv,
+        horizon=horizon,
+        calibration_ok=_calibration_clean(calibration),
+    )
+    verdict = gating_verdict(gates)
+    tier = tier_from_verdict(wfcv, verdict)
     horizons = [
         _horizon_summary(
             _simulate_paths(current, rets, horizon=h, n_sims=max(120, n_sims // 2), seed=seed + h),
             current=current,
             spread_ratio=spread_ratio,
             horizon=h,
+            tax_rate=tax_rate,
         )
         for h in (1, 3, 7)
     ]
@@ -443,6 +510,7 @@ def forecast_diagnostics(
         "horizon": horizon,
         "n_prices": len(prices),
         "block_length": block_len,
+        "tax_rate": tax_rate,
         "expected_ret": expected_ret,
         "p_profit": p_profit,
         "p5_ret": _quantile(returns, 0.05),
@@ -455,10 +523,8 @@ def forecast_diagnostics(
         "diagnostics": diagnostics,
         "walk_forward": wfcv,
         "calibration": calibration,
+        "gate_pills": gates_summary_pills(gates),
         "gates": gates,
         "tier": tier,
-        "verdict": {
-            "status": "OBSERVATIONAL ONLY",
-            "reason": "forecast diagnostics are not executable trade signals",
-        },
+        "verdict": verdict,
     }

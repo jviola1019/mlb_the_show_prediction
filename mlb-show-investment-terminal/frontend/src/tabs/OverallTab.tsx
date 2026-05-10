@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { api } from "../api";
 import type { TerminalContext } from "../appState";
 import { formatDateTime, Panel, Pill, Stat } from "../components";
+
+const TierOvrEvScatter3D = lazy(() => import("../viz/TierOvrEvScatter3D"));
 
 export function OverallTab({ ctx }: { ctx: TerminalContext }) {
   const [now, setNow] = useState(() => new Date());
@@ -70,12 +72,21 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
         </div>
       </Panel>
 
+      {ctx.lastScan?.records?.length ? (
+        <Panel title="Universe · 3D" kicker="OVR × tier × forecast EV, color = verdict">
+          <Suspense fallback={<div className="empty">loading universe…</div>}>
+            <TierOvrEvScatter3D records={ctx.lastScan.records} />
+          </Suspense>
+        </Panel>
+      ) : null}
+
       <Panel title="Operating Rules" kicker="hard constraints">
         <ul className="rule-list">
-          <li>Executable flip decisions use current bid/ask after-tax math only.</li>
+          <li>7-gate governance (governance.py) is the single source of verdicts: INVESTABLE / OBSERVATIONAL ONLY / NOT INVESTABLE.</li>
+          <li>OBSERVATIONAL records are excluded from TOP BUY / TOP SELL and have EV/Kelly fields blanked client-side.</li>
+          <li>Executable flip decisions use current bid/ask after-tax math; tax_rate is parametrized (default 10%).</li>
           <li>Forecast EV is diagnostic and cannot create flip BUY or SELL labels.</li>
-          <li>Upgrade investing is threshold-probability based, not exact OVR based.</li>
-          <li>Historical calibration is unavailable until real pre/post roster labels are supplied.</li>
+          <li>Historical calibration enters as gate 7 (calibration_present) - absence demotes the verdict to OBSERVATIONAL.</li>
         </ul>
       </Panel>
     </div>

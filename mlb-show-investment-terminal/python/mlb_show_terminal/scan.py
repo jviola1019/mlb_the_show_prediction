@@ -88,14 +88,24 @@ def _status_from_record(record: dict[str, Any]) -> str:
 
 
 def _verdict_from_record(record: dict[str, Any]) -> str:
+    """Read the governance verdict directly from the forecast block.
+
+    The 7-gate governance system (governance.py) is the single source of truth.
+    Fall back to flip/upgrade action labels only when no forecast was produced.
+    """
     if record.get("status") == "dropped":
         return "NOT INVESTABLE"
+    forecast = record.get("forecast") or {}
+    verdict = forecast.get("verdict") if isinstance(forecast.get("verdict"), dict) else {}
+    status = verdict.get("status")
+    if status in ("INVESTABLE", "OBSERVATIONAL ONLY", "NOT INVESTABLE"):
+        return str(status)
     flip = record.get("flip") or {}
     upgrade = record.get("upgrade") or {}
     if flip.get("action") == "BUY" or upgrade.get("action") == "BUY SPECULATIVE":
         return "INVESTABLE"
     if flip.get("action") == "SELL" or upgrade.get("action") == "SELL":
-        return "RISK EXIT"
+        return "OBSERVATIONAL ONLY"
     return "OBSERVATIONAL ONLY"
 
 
@@ -191,11 +201,32 @@ def analyze_listing(
 
 
 def partition_scan(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
-    buckets = {"flip_buys": [], "upgrade_buys": [], "holds": [], "sells": [], "dropped": []}
+    """Bucket scan records by governance verdict + action.
+
+    Governance contract: a record whose verdict is OBSERVATIONAL ONLY or NOT
+    INVESTABLE NEVER enters ``flip_buys`` or ``upgrade_buys`` regardless of the
+    underlying flip/upgrade action label. This closes the visibility leak that
+    let unvalidated cards rank in TOP BUY / TOP SELL.
+    """
+    buckets: dict[str, list[dict[str, Any]]] = {
+        "flip_buys": [],
+        "upgrade_buys": [],
+        "holds": [],
+        "sells": [],
+        "observational": [],
+        "dropped": [],
+    }
     for rec in records:
         enrich_scan_fields(rec)
         if rec.get("status") == "dropped":
             buckets["dropped"].append(rec)
+            continue
+        verdict = _verdict_from_record(rec)
+        if verdict == "NOT INVESTABLE":
+            buckets["dropped"].append(rec)
+            continue
+        if verdict == "OBSERVATIONAL ONLY":
+            buckets["observational"].append(rec)
             continue
         flip = rec.get("flip") or {}
         upgrade = rec.get("upgrade") or {}
@@ -211,6 +242,10 @@ def partition_scan(records: list[dict[str, Any]]) -> dict[str, list[dict[str, An
     buckets["flip_buys"].sort(key=lambda r: ((r.get("flip") or {}).get("roi") or -999), reverse=True)
     buckets["upgrade_buys"].sort(key=lambda r: ((r.get("upgrade") or {}).get("upgrade_score") or -999), reverse=True)
     buckets["sells"].sort(key=lambda r: ((r.get("flip") or {}).get("roi") or 999))
+    buckets["observational"].sort(
+        key=lambda r: ((r.get("forecast") or {}).get("expected_ret") or 0.0),
+        reverse=True,
+    )
     return buckets
 
 

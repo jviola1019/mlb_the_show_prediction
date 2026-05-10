@@ -5,6 +5,11 @@ import { useState } from "react";
 import { api } from "../api";
 import type { TerminalContext } from "../appState";
 import { fmtNum, fmtPct, fmtStubs, Panel, Stat } from "../components";
+import { VerdictBanner, verdictOf } from "../verdictGuard";
+import { Suspense, lazy } from "react";
+import type { CalibrationBin } from "../types";
+
+const ReliabilityRibbon3D = lazy(() => import("../viz/ReliabilityRibbon3D"));
 
 export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
   const [predictions, setPredictions] = useState('[{"uuid":"a","p_cross_next_threshold":0.9}]');
@@ -25,8 +30,23 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
   });
   const data = backtest.data;
   const curve = (data?.calibration_curve as Array<Record<string, number>> | undefined) ?? [];
+  const currentVerdict = ctx.currentRecord ? verdictOf(ctx.currentRecord) : null;
   return (
     <div className="grid">
+      {ctx.currentRecord ? (
+        <Panel title="Loaded Card Verdict" kicker={currentVerdict ?? "no verdict"}>
+          <VerdictBanner record={ctx.currentRecord} />
+          {ctx.currentRecord.forecast?.gate_pills?.length ? (
+            <div className="gates-pills">
+              {ctx.currentRecord.forecast.gate_pills.map((pill) => (
+                <span key={pill.key} className={`pill pill-${pill.tone}`} title={pill.reason}>
+                  {pill.mark} {pill.label}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </Panel>
+      ) : null}
       <Panel title="Manual Flip Validation" kicker="same formula as backend">
         <div className="form-row three">
           <input value={ask} onChange={(e) => setAsk(e.target.value)} placeholder="raw ask / sell price" aria-label="manual ask" />
@@ -69,6 +89,20 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+            {curve.length ? (
+              <Suspense fallback={<div className="empty">loading reliability ribbon…</div>}>
+                <ReliabilityRibbon3D
+                  bins={curve.map((row, idx) => ({
+                    bin_lo: idx / Math.max(1, curve.length),
+                    bin_hi: (idx + 1) / Math.max(1, curve.length),
+                    bin_mid: Number(row.mean_predicted ?? row.bin_mid ?? 0),
+                    n: Number(row.n ?? 1),
+                    mean_pred: Number(row.mean_predicted ?? null),
+                    observed_rate: Number(row.observed_rate ?? null),
+                  })) as CalibrationBin[]}
+                />
+              </Suspense>
+            ) : null}
           </>
         ) : null}
       </Panel>

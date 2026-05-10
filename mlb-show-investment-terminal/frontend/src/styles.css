@@ -508,3 +508,126 @@ code {
   * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
   .bootscreen { display: none; }
 }
+
+/* ============================================================
+ * Governance verdict states (7-gate system)
+ * Visual treatment that cannot be mistaken for a tradeable signal.
+ * ============================================================ */
+
+.verdict-banner {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+  letter-spacing: 0.04em;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+.verdict-banner-head { display: flex; align-items: center; gap: 0.5rem; }
+.verdict-banner-label { font-weight: 600; }
+.verdict-banner-reasons {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  opacity: 0.85;
+}
+.verdict-bull {
+  border-color: rgba(16, 185, 129, 0.55);
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.07);
+}
+.verdict-warn {
+  border-color: rgba(245, 158, 11, 0.55);
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.08);
+}
+.verdict-bear {
+  border-color: rgba(220, 38, 38, 0.65);
+  color: #f87171;
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.blocked-placeholder {
+  border: 1px dashed rgba(220, 38, 38, 0.6);
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(220, 38, 38, 0.04),
+    rgba(220, 38, 38, 0.04) 6px,
+    rgba(220, 38, 38, 0.08) 6px,
+    rgba(220, 38, 38, 0.08) 12px
+  );
+  border-radius: 10px;
+  padding: 1.25rem 1rem;
+  color: #fda4af;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+.blocked-placeholder-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.blocked-placeholder-reasons {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+
+.observational-overlay { position: relative; }
+.observational-overlay .observational-content {
+  filter: grayscale(0.4) brightness(0.92);
+  opacity: 0.85;
+}
+.observational-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 1.3rem;
+  letter-spacing: 0.35em;
+  font-weight: 700;
+  color: rgba(251, 191, 36, 0.18);
+  text-shadow: 0 0 22px rgba(251, 191, 36, 0.25);
+  z-index: 1;
+  transform: rotate(-8deg);
+}
+
+.gates-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+.gates-pills .pill {
+  font-size: 0.68rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  letter-spacing: 0.06em;
+}
+.gates-pills .pill-bull {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.gates-pills .pill-bear {
+  background: rgba(220, 38, 38, 0.18);
+  color: #fca5a5;
+  border: 1px solid rgba(220, 38, 38, 0.45);
+}

@@ -19,6 +19,16 @@ import {
 } from "../components";
 import type { ScoreRecord, SearchResponse } from "../types";
 import { useState } from "react";
+import {
+  GuardedVisual,
+  VerdictBanner,
+  blankIf,
+  isInvestable,
+  verdictOf,
+} from "../verdictGuard";
+import { Suspense, lazy } from "react";
+
+const ForecastSurface3D = lazy(() => import("../viz/ForecastSurface3D"));
 
 export function CardTab({ ctx }: { ctx: TerminalContext }) {
   const [name, setName] = useState("Mike Trout");
@@ -104,17 +114,28 @@ export function CardTab({ ctx }: { ctx: TerminalContext }) {
 
 function TargetPanel({ record }: { record: ScoreRecord }) {
   const card = record.card ?? {};
+  const investable = isInvestable(record);
+  // Under non-INVESTABLE verdicts, blank executable/Kelly-shaped fields so the
+  // UI never implies a tradeable signal under failed governance. The raw
+  // bid/ask/spread stay visible (they're factual, not predictive).
+  const profit = blankIf(record, fmtStubs(record.flip?.profit));
+  const roi = blankIf(record, fmtPct(record.flip?.roi, 2));
+  const afterTax = blankIf(record, fmtStubs(record.flip?.after_tax_sale));
+  const pCross = blankIf(record, fmtPct(record.upgrade?.p_cross_next_threshold, 1));
+  const pUp = blankIf(record, fmtPct(record.upgrade?.p_upgrade, 1));
+  const pDown = blankIf(record, fmtPct(record.upgrade?.p_downgrade, 1));
   return (
     <Panel title="Target" kicker={<FreshnessBadge at={record.fetched_at} label="LISTING" />} className="target-panel">
       <CardIdentity record={record} />
+      <VerdictBanner record={record} />
       <div className="target-signal-row">
         <div>
           <div className="stat-label">Flip signal</div>
-          <SignalPill action={record.flip?.action} />
+          <SignalPill action={investable ? record.flip?.action : "OBSERVE"} />
         </div>
         <div>
           <div className="stat-label">Upgrade signal</div>
-          <SignalPill action={record.upgrade?.action} />
+          <SignalPill action={investable ? record.upgrade?.action : "OBSERVE"} />
         </div>
         <div className="score-density">
           <div className="stat-label">Liquidity</div>
@@ -125,12 +146,12 @@ function TargetPanel({ record }: { record: ScoreRecord }) {
       <div className="stat-grid">
         <Stat label="Raw ask" value={fmtStubs(record.flip?.sell_price ?? card.raw_ask)} />
         <Stat label="Raw bid" value={fmtStubs(record.flip?.buy_price ?? card.raw_bid)} />
-        <Stat label="After tax" value={fmtStubs(record.flip?.after_tax_sale)} />
-        <Stat label="Profit" value={fmtStubs(record.flip?.profit)} tone={(record.flip?.profit ?? 0) > 0 ? "good" : "bad"} />
-        <Stat label="ROI" value={fmtPct(record.flip?.roi, 2)} />
-        <Stat label="P(Cross)" value={fmtPct(record.upgrade?.p_cross_next_threshold, 1)} />
-        <Stat label="P(Up)" value={fmtPct(record.upgrade?.p_upgrade, 1)} />
-        <Stat label="P(Down)" value={fmtPct(record.upgrade?.p_downgrade, 1)} />
+        <Stat label="After tax" value={afterTax} />
+        <Stat label="Profit" value={profit} tone={investable && (record.flip?.profit ?? 0) > 0 ? "good" : investable ? "bad" : "neutral"} />
+        <Stat label="ROI" value={roi} />
+        <Stat label="P(Cross)" value={pCross} />
+        <Stat label="P(Up)" value={pUp} />
+        <Stat label="P(Down)" value={pDown} />
       </div>
       <div className="reason-block">
         <div>
@@ -154,53 +175,70 @@ function DiagnosticsPanel({ record }: { record: ScoreRecord }) {
   ];
   const hasCone = Boolean(record.forecast?.cone?.length);
   const chartData = hasCone ? record.forecast?.cone ?? [] : chart;
+  const gates = record.forecast?.gates ?? {};
+  const failedGates = Object.entries(gates)
+    .filter(([, g]) => g && !g.passed)
+    .map(([k]) => k);
+  const status = verdictOf(record);
   return (
-    <Panel title="Forecast Diagnostics" kicker="not executable">
+    <Panel title="Forecast Diagnostics" kicker={`verdict: ${status}`}>
       <div className="stat-grid">
         <Stat label="Direction" value={record.forecast?.direction ?? record.forecast?.status ?? "-"} />
-        <Stat label="E[ret]" value={fmtPct(record.forecast?.expected_ret, 2)} />
-        <Stat label="P(profit)" value={fmtPct(record.forecast?.p_profit, 1)} />
+        <Stat label="E[ret]" value={blankIf(record, fmtPct(record.forecast?.expected_ret, 2))} />
+        <Stat label="P(profit)" value={blankIf(record, fmtPct(record.forecast?.p_profit, 1))} />
         <Stat label="N prices" value={fmtNum(record.forecast?.n_prices, 0)} />
         <Stat label="Tier" value={record.forecast?.tier ?? record.tier ?? "-"} />
-        <Stat label="Verdict" value={record.forecast?.verdict?.status ?? record.verdict_status ?? "-"} />
-        <Stat label="Gates" value={(record.forecast?.gates?.failed ?? []).length ? "warning" : "pass"} tone={(record.forecast?.gates?.failed ?? []).length ? "warn" : "good"} />
+        <Stat label="Verdict" value={status} tone={status === "INVESTABLE" ? "good" : status === "OBSERVATIONAL ONLY" ? "warn" : "bad"} />
+        <Stat label="Gates" value={failedGates.length ? `${failedGates.length} failed` : "all pass"} tone={failedGates.length ? "warn" : "good"} />
         <Stat label="Diagnostic" value={record.forecast?.diagnostic_only ? "yes" : "no"} />
       </div>
-      <div className="chart tall">
-        <ResponsiveContainer width="100%" height={150}>
-          <LineChart data={chartData as Array<Record<string, unknown>>}>
-            <XAxis dataKey={hasCone ? "step" : "metric"} />
-            <YAxis tickFormatter={(v) => hasCone ? fmtStubs(v) : `${(Number(v) * 100).toFixed(0)}%`} />
-            <Tooltip formatter={(v) => hasCone ? fmtStubs(v) : fmtPct(v, 2)} />
-            {hasCone ? (
-              <>
-                <Line type="monotone" dataKey="p95" stroke="#38bdf8" dot={false} />
-                <Line type="monotone" dataKey="p50" stroke="#10b981" dot={false} />
-                <Line type="monotone" dataKey="p5" stroke="#fbbf24" dot={false} />
-              </>
-            ) : <Line type="monotone" dataKey="value" stroke="#60a5fa" dot />}
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="split">
-        <div>
-          <div className="stat-label">Multi-horizon EV</div>
-          <MiniTable rows={record.forecast?.horizons ?? []} columns={["horizon", "expected_ret", "p_profit", "p5_ret", "p95_ret", "half_kelly"]} percentCols={["expected_ret", "p_profit", "p5_ret", "p95_ret", "half_kelly"]} />
+      <GuardedVisual record={record} blockedTitle="FORECAST BLOCKED · GATE FAILURE">
+        {isInvestable(record) && hasCone ? (
+          <Suspense fallback={<div className="empty">loading 3D surface…</div>}>
+            <ForecastSurface3D record={record} />
+          </Suspense>
+        ) : null}
+        <div className="chart tall">
+          <ResponsiveContainer width="100%" height={150}>
+            <LineChart data={chartData as Array<Record<string, unknown>>}>
+              <XAxis dataKey={hasCone ? "step" : "metric"} />
+              <YAxis tickFormatter={(v) => hasCone ? fmtStubs(v) : `${(Number(v) * 100).toFixed(0)}%`} />
+              <Tooltip formatter={(v) => hasCone ? fmtStubs(v) : fmtPct(v, 2)} />
+              {hasCone ? (
+                <>
+                  <Line type="monotone" dataKey="p95" stroke="#38bdf8" dot={false} />
+                  <Line type="monotone" dataKey="p50" stroke="#10b981" dot={false} />
+                  <Line type="monotone" dataKey="p5" stroke="#fbbf24" dot={false} />
+                </>
+              ) : <Line type="monotone" dataKey="value" stroke="#60a5fa" dot />}
+            </LineChart>
+          </ResponsiveContainer>
         </div>
-        <div>
-          <div className="stat-label">Walk-forward CV</div>
-          <MiniTable rows={[record.forecast?.walk_forward ?? {}]} columns={["status", "n_trades", "brier_point", "ic_point", "hit_rate", "ci_method"]} percentCols={["brier_point", "ic_point", "hit_rate"]} />
+        <div className="split">
+          <div>
+            <div className="stat-label">Multi-horizon EV</div>
+            <MiniTable rows={record.forecast?.horizons ?? []} columns={["horizon", "expected_ret", "p_profit", "p5_ret", "p95_ret", "half_kelly"]} percentCols={["expected_ret", "p_profit", "p5_ret", "p95_ret", "half_kelly"]} />
+          </div>
+          <div>
+            <div className="stat-label">Walk-forward CV</div>
+            <MiniTable rows={[record.forecast?.walk_forward ?? {}]} columns={["status", "n_trades", "brier_point", "ic_point", "hit_rate", "ci_method"]} percentCols={["brier_point", "ic_point", "hit_rate"]} />
+          </div>
         </div>
-      </div>
+      </GuardedVisual>
       <div className="split">
         <div>
           <div className="stat-label">Quant diagnostics</div>
           <MiniTable rows={[record.forecast?.diagnostics ?? {}]} columns={["z30", "drift_per_day", "drift_p_value", "hurst", "annualized_vol", "spread_pct"]} percentCols={["drift_per_day", "annualized_vol", "spread_pct"]} />
         </div>
         <div>
-          <div className="stat-label">Forecast gates</div>
-          <ReasonCodes codes={record.forecast?.gates?.failed ?? record.gates_failed_csv} />
-          <p className="muted">{record.forecast?.gates?.note ?? "Forecast gates do not block executable flip or upgrade signals."}</p>
+          <div className="stat-label">Gate status</div>
+          <div className="gates-pills">
+            {(record.forecast?.gate_pills ?? []).map((pill) => (
+              <span key={pill.key} className={`pill pill-${pill.tone}`} title={pill.reason}>
+                {pill.mark} {pill.label}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </Panel>

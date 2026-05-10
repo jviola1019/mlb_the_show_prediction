@@ -193,7 +193,7 @@ const columns: ColumnDef<ScoreRecord>[] = [
   { header: "Reasons", cell: (ctx) => <ReasonCodes codes={ctx.row.original.flip?.reason_codes ?? ctx.row.original.flip?.reason_codes_csv} /> }
 ];
 
-export type ScanTableKind = "all" | "flip" | "upgrade" | "holds" | "sells" | "dropped";
+export type ScanTableKind = "all" | "flip" | "upgrade" | "holds" | "sells" | "observational" | "dropped";
 
 function field<T>(record: ScoreRecord, key: keyof ScoreRecord, fallback?: T): T | unknown {
   const value = record[key];
@@ -253,6 +253,15 @@ const scanColumns: Record<ScanTableKind, ColumnDef<ScoreRecord>[]> = {
     { header: "Forecast", accessorFn: (r) => String(r.forecast_direction ?? r.forecast?.direction ?? "-") },
     { header: "Flip Reasons", cell: (ctx) => <ReasonCodes codes={ctx.row.original.flip_reason_codes ?? ctx.row.original.flip?.reason_codes} /> },
     { header: "Upgrade Reasons", cell: (ctx) => <ReasonCodes codes={ctx.row.original.upgrade_reason_codes ?? ctx.row.original.upgrade?.reason_codes} /> }
+  ],
+  observational: [
+    { header: "Player", cell: (ctx) => <CardIdentity record={ctx.row.original} compact /> },
+    { header: "OVR", accessorFn: (r) => String(field(r, "ovr", cardFromRecord(r).current_ovr) ?? "-") },
+    { header: "Verdict", accessorFn: (r) => String(r.verdict?.status ?? r.verdict_status ?? "OBSERVATIONAL ONLY") },
+    { header: "Direction", accessorFn: (r) => String(r.forecast_direction ?? r.forecast?.direction ?? "-") },
+    { header: "Forecast EV", cell: (ctx) => fmtPct(ctx.row.original.forecast_ev_7d ?? ctx.row.original.forecast?.expected_ret, 2) },
+    { header: "Tier", accessorFn: (r) => String(r.tier ?? r.forecast?.tier ?? "BRONZE") },
+    { header: "Failed Gates", cell: (ctx) => <ReasonCodes codes={ctx.row.original.verdict?.failed_csv ?? ctx.row.original.gates_failed_csv} /> }
   ],
   dropped: [
     { header: "UUID", cell: (ctx) => <code>{ctx.row.original.uuid ?? "-"}</code> },

@@ -34,6 +34,35 @@ export type UpgradeResult = {
   reason_codes?: string[];
 };
 
+export type VerdictStatus = "INVESTABLE" | "OBSERVATIONAL ONLY" | "NOT INVESTABLE";
+
+export type Verdict = {
+  status: VerdictStatus;
+  headline?: string;
+  badge_tone?: "bull" | "warn" | "bear";
+  reasons?: string[];
+  failed?: string[];
+  failed_csv?: string;
+};
+
+export type GatePill = {
+  key: string;
+  label: string;
+  tone: "bull" | "bear";
+  mark: string;
+  passed: boolean;
+  reason: string;
+};
+
+export type CalibrationBin = {
+  bin_lo: number;
+  bin_hi: number;
+  bin_mid: number;
+  n: number;
+  mean_pred: number | null;
+  observed_rate: number | null;
+};
+
 export type ForecastResult = {
   status: string;
   diagnostic_only: boolean;
@@ -41,17 +70,20 @@ export type ForecastResult = {
   expected_ret?: number | null;
   p_profit?: number | null;
   p5_ret?: number | null;
+  p50_ret?: number | null;
   p95_ret?: number | null;
   n_prices?: number;
+  tax_rate?: number;
   reason?: string;
   cone?: Array<{ step: number; p5?: number | null; p50?: number | null; p95?: number | null }>;
   horizons?: Array<Record<string, unknown>>;
   diagnostics?: Record<string, unknown>;
   walk_forward?: Record<string, unknown>;
-  calibration?: { status?: string; bins?: Array<Record<string, unknown>> };
-  gates?: { status?: string; failed?: string[]; failed_csv?: string; note?: string };
+  calibration?: { status?: string; bins?: CalibrationBin[] };
+  gates?: Record<string, { passed: boolean; reason: string }>;
+  gate_pills?: GatePill[];
   tier?: string;
-  verdict?: { status?: string; reason?: string };
+  verdict?: Verdict;
 };
 
 export type CardRow = {
@@ -105,6 +137,9 @@ export type ScoreRecord = {
   p_cross_90?: number | null;
   upgrade_confidence?: number | null;
   upgrade_score?: number | null;
+  liquidity_score?: number | null;
+  liquidity_n?: number | null;
+  liquidity_recent?: number | null;
   flip_action?: string;
   upgrade_action?: string;
   forecast_direction?: string;
@@ -113,7 +148,8 @@ export type ScoreRecord = {
   upgrade_reason_codes?: string;
   gates_failed_csv?: string;
   scan_status?: string;
-  verdict_status?: string;
+  verdict?: Verdict;
+  verdict_status?: VerdictStatus | string;
   tier?: string;
   scan_index?: number;
   scan_total?: number;
@@ -142,7 +178,7 @@ export type ScanResponse = {
     rate_limit_message: string;
   };
   records: ScoreRecord[];
-  partitions: Record<"flip_buys" | "upgrade_buys" | "holds" | "sells" | "dropped", ScoreRecord[]>;
+  partitions: Record<"flip_buys" | "upgrade_buys" | "holds" | "sells" | "observational" | "dropped", ScoreRecord[]>;
   counts: Record<string, number>;
   tier_distribution?: Record<string, number>;
   market_health?: Record<string, number | null>;

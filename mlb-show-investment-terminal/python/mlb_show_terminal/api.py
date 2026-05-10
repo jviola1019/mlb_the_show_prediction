@@ -27,6 +27,21 @@ from .upgrade import score_upgrade
 STARTED_AT = time.time()
 
 
+def _surface_verdict(record: dict[str, Any]) -> None:
+    """Copy the forecast.verdict block to the record root for client convenience.
+
+    The React UI reads ``record.verdict.status`` to decide whether to render
+    BlockedPlaceholder / ObservationalOverlay / full 3D viz. Keeping the verdict
+    only nested forced every consumer to walk through the forecast block.
+    """
+    forecast = record.get("forecast") if isinstance(record.get("forecast"), dict) else {}
+    verdict = forecast.get("verdict") if isinstance(forecast.get("verdict"), dict) else None
+    if isinstance(verdict, dict) and verdict.get("status"):
+        record["verdict"] = verdict
+        record["verdict_status"] = verdict.get("status")
+        record["gates_failed_csv"] = verdict.get("failed_csv", record.get("gates_failed_csv", ""))
+
+
 class AnalyzeRequest(BaseModel):
     listing: dict[str, Any] | None = None
     row: dict[str, Any] | None = None
@@ -145,7 +160,9 @@ def create_app(static_dir: str | Path | None = None) -> FastAPI:
     @app.post("/api/card/analyze")
     def card_analyze(req: AnalyzeRequest) -> dict[str, Any]:
         if req.listing is not None:
-            return analyze_listing(req.listing, stats=req.stats)
+            payload = analyze_listing(req.listing, stats=req.stats)
+            _surface_verdict(payload)
+            return payload
         if req.row is not None:
             scored = score_row(req.row)
             scored["card"] = req.row
@@ -153,6 +170,14 @@ def create_app(static_dir: str | Path | None = None) -> FastAPI:
                 "status": "unavailable",
                 "diagnostic_only": True,
                 "reason": "listing payload required for price-history diagnostics",
+            }
+            scored["verdict"] = {
+                "status": "OBSERVATIONAL ONLY",
+                "headline": "OBSERVATIONAL ONLY - no listing payload, governance skipped",
+                "failed": ["history_sufficient", "data_fresh", "cv_available"],
+                "failed_csv": "history_sufficient,data_fresh,cv_available",
+                "reasons": ["row-only entry; listing required for forecast governance"],
+                "badge_tone": "warn",
             }
             return scored
         raise HTTPException(status_code=400, detail="listing or row is required")
@@ -175,7 +200,10 @@ def create_app(static_dir: str | Path | None = None) -> FastAPI:
 
     @app.post("/api/scan")
     def scan(req: ScanRequest) -> dict[str, Any]:
-        return scan_payload(req.model_dump())
+        payload = scan_payload(req.model_dump())
+        for rec in payload.get("records") or []:
+            _surface_verdict(rec)
+        return payload
 
     @app.post("/api/scan/jobs")
     def create_scan_job(req: ScanRequest) -> dict[str, Any]:
