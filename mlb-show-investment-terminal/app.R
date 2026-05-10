@@ -45,6 +45,9 @@ ui <- bslib::page_navbar(
     htmltools::tags$head(
       htmltools::tags$meta(name = "viewport",
         content = "width=device-width, initial-scale=1, maximum-scale=1"),
+      htmltools::tags$link(rel = "icon", type = "image/svg+xml",
+                           href = "favicon.svg"),
+      htmltools::tags$link(rel = "alternate icon", href = "favicon.ico"),
       htmltools::tags$link(rel = "stylesheet", href = "theme.css"),
       htmltools::tags$script(src = "particles.js", defer = NA),
       htmltools::tags$script(src = "tab_transitions.js", defer = NA),
@@ -53,6 +56,7 @@ ui <- bslib::page_navbar(
     htmltools::tags$div(class = "scanline-overlay"),
     loading_screen()
   ),
+  ui_overall_tab(),
   ui_card_tab(),
   ui_ovr_tab(),
   ui_scan_tab(),
@@ -62,11 +66,19 @@ ui <- bslib::page_navbar(
 
 server <- function(input, output, session) {
   loaded_uuids_rv <- shiny::reactiveVal(character(0))
+  api_log <- shiny::reactiveValues(
+    theshow_ok = numeric(0),  theshow_err = numeric(0),
+    mlb_ok = numeric(0),      mlb_err = numeric(0)
+  )
   app_state <- shiny::reactiveValues(
     roster_updates = .roster_updates,
     current_listing = NULL,
     current_price_history = function() NULL,
-    loaded_uuids = loaded_uuids_rv
+    loaded_uuids = loaded_uuids_rv,
+    api_log = api_log,
+    last_scan_df = NULL,
+    last_scan_at = NULL,
+    last_card_listing_at = NULL
   )
 
   # Track every UUID the user loads so SESSION HISTORY scan mode has data.
@@ -98,6 +110,7 @@ server <- function(input, output, session) {
   server_ovr(input, output, session, app_state)
   server_validate(input, output, session, app_state)
   server_scan(input, output, session, app_state)
+  server_overall(input, output, session, app_state)
 
   # Hide bootscreen ~600ms after first session render
   session$onFlushed(function() {

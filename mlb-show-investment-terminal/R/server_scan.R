@@ -5,10 +5,10 @@ server_scan <- function(input, output, session, app_state) {
   scan_run <- shiny::eventReactive(input$btn_scan, {
     mode <- input$scan_mode
     uuids <- character(0)
-    if (mode == "top_diamonds") {
+    if (mode == "top_live") {
       n_req <- as.integer(input$scan_top_n %||% 10L)
-      td <- tryCatch(discover_top_listings("Diamond",
-                                            max_per_page = n_req),
+      rarity <- input$scan_rarity %||% "Gold"
+      td <- tryCatch(discover_top_listings(rarity, max_per_page = n_req),
                      error = function(e) {
                        shiny::showNotification(
                          paste("discover failed:", conditionMessage(e)),
@@ -39,8 +39,12 @@ server_scan <- function(input, output, session, app_state) {
             message = sprintf("scanning %d of %d", i, n_total),
             detail  = name)
     }
-    scan_universe(uuids, horizon = 7L, rate_delay = 1.5,
-                  progress = progress_cb)
+    df <- scan_universe(uuids, horizon = 7L, rate_delay = 1.5,
+                        progress = progress_cb,
+                        include_upgrade_stats = TRUE)
+    app_state$last_scan_df <- df
+    app_state$last_scan_at <- Sys.time()
+    df
   })
 
   scan_parts <- shiny::reactive({
@@ -49,7 +53,7 @@ server_scan <- function(input, output, session, app_state) {
     scan_partition(df)
   })
 
-  render_table <- function(df, kind = c("buy","sell","observe")) {
+  render_table <- function(df, kind = c("flip","upgrade","holds","sell","dropped")) {
     kind <- match.arg(kind)
     if (is.null(df) || nrow(df) == 0L) {
       return(reactable::reactable(
@@ -58,29 +62,72 @@ server_scan <- function(input, output, session, app_state) {
       ))
     }
     cols <- list(
+      uuid = reactable::colDef(show = FALSE),
       name = reactable::colDef(name = "PLAYER", minWidth = 130),
       rarity = reactable::colDef(name = "RARITY", maxWidth = 90),
       ovr = reactable::colDef(name = "OVR", maxWidth = 60, align = "right"),
-      ask = reactable::colDef(name = "ASK", align = "right",
+      raw_bid = reactable::colDef(name = "RAW BID", align = "right",
         format = reactable::colFormat(separators = TRUE, digits = 0)),
-      ev_7d = reactable::colDef(name = "E[ret]", align = "right",
+      raw_ask = reactable::colDef(name = "RAW ASK", align = "right",
+        format = reactable::colFormat(separators = TRUE, digits = 0)),
+      after_tax_sale = reactable::colDef(name = "AFTER TAX", align = "right",
+        format = reactable::colFormat(separators = TRUE, digits = 1)),
+      flip_profit = reactable::colDef(name = "PROFIT", align = "right",
+        format = reactable::colFormat(separators = TRUE, digits = 1)),
+      flip_roi = reactable::colDef(name = "ROI", align = "right",
         format = reactable::colFormat(percent = TRUE, digits = 2)),
-      score = reactable::colDef(name = "SCORE", align = "right"),
-      action = reactable::colDef(name = "ACTION", align = "left",
-                                 maxWidth = 120),
-      direction = reactable::colDef(name = "DIR", maxWidth = 50,
-                                    align = "center"),
-      ic_point = reactable::colDef(name = "CV IC", align = "right",
-        format = reactable::colFormat(digits = 3)),
-      gates_failed_csv = reactable::colDef(name = "FAILED GATES",
-                                            minWidth = 160)
+      spread_pct = reactable::colDef(name = "SPREAD", align = "right",
+        format = reactable::colFormat(percent = TRUE, digits = 1)),
+      liquidity_recent = reactable::colDef(name = "LIQ 24H", align = "right"),
+      flip_action = reactable::colDef(name = "FLIP", maxWidth = 100),
+      flip_reason_codes = reactable::colDef(name = "FLIP REASONS",
+                                            minWidth = 220),
+      forecast_direction = reactable::colDef(name = "FORECAST",
+                                             minWidth = 130),
+      forecast_ev_7d = reactable::colDef(name = "FORECAST EV", align = "right",
+        format = reactable::colFormat(percent = TRUE, digits = 2)),
+      new_rank = reactable::colDef(name = "NEW RANK", align = "right"),
+      next_threshold = reactable::colDef(name = "NEXT", align = "right"),
+      distance_to_threshold = reactable::colDef(name = "DIST", align = "right"),
+      distance_to_85 = reactable::colDef(name = "DIST 85", align = "right"),
+      distance_to_90 = reactable::colDef(name = "DIST 90", align = "right"),
+      p_upgrade = reactable::colDef(name = "P(UP)", align = "right",
+        format = reactable::colFormat(percent = TRUE, digits = 1)),
+      p_downgrade = reactable::colDef(name = "P(DOWN)", align = "right",
+        format = reactable::colFormat(percent = TRUE, digits = 1)),
+      p_cross_next_threshold = reactable::colDef(name = "P(CROSS)", align = "right",
+        format = reactable::colFormat(percent = TRUE, digits = 1)),
+      upgrade_confidence = reactable::colDef(name = "CONF", align = "right",
+        format = reactable::colFormat(digits = 0)),
+      upgrade_score = reactable::colDef(name = "UPG SCORE", align = "right",
+        format = reactable::colFormat(digits = 0)),
+      upgrade_action = reactable::colDef(name = "UPGRADE", minWidth = 130),
+      upgrade_reason_codes = reactable::colDef(name = "UPGRADE REASONS",
+                                               minWidth = 230),
+      scan_status = reactable::colDef(name = "STATUS"),
+      gates_failed_csv = reactable::colDef(name = "FORECAST GATES",
+                                           minWidth = 180)
     )
-    show_cols <- if (kind == "observe") {
-      c("name","rarity","ovr","ask","direction","ic_point",
-        "gates_failed_csv")
-    } else {
-      c("name","rarity","ovr","ask","ev_7d","score","action","ic_point")
-    }
+    show_cols <- switch(kind,
+      flip = c("uuid","name","rarity","ovr","raw_bid","raw_ask",
+               "after_tax_sale","flip_profit","flip_roi","spread_pct",
+               "liquidity_recent","forecast_direction","flip_reason_codes"),
+      upgrade = c("uuid","name","rarity","ovr","new_rank","next_threshold",
+                  "distance_to_threshold","distance_to_85",
+                  "p_cross_next_threshold",
+                  "p_upgrade","p_downgrade","upgrade_confidence",
+                  "upgrade_score","upgrade_action","upgrade_reason_codes"),
+      holds = c("uuid","name","rarity","ovr","flip_action","upgrade_action",
+                "forecast_direction","forecast_ev_7d","flip_roi",
+                "distance_to_85","p_cross_next_threshold","flip_reason_codes",
+                "upgrade_reason_codes"),
+      sell = c("uuid","name","rarity","ovr","flip_action","upgrade_action",
+               "flip_roi","p_downgrade","forecast_direction",
+               "flip_reason_codes","upgrade_reason_codes"),
+      dropped = c("uuid","name","rarity","ovr","raw_bid","raw_ask",
+                  "scan_status","flip_reason_codes","upgrade_reason_codes",
+                  "gates_failed_csv")
+    )
     df <- df[, show_cols, drop = FALSE]
     cols <- cols[names(cols) %in% show_cols]
     reactable::reactable(
@@ -101,14 +148,20 @@ server_scan <- function(input, output, session, app_state) {
     )
   }
 
-  output$scan_top_buy <- reactable::renderReactable({
-    p <- scan_parts(); shiny::req(p); render_table(p$buy, "buy")
+  output$scan_flip_buys <- reactable::renderReactable({
+    p <- scan_parts(); shiny::req(p); render_table(p$flip_buy, "flip")
   })
-  output$scan_top_sell <- reactable::renderReactable({
+  output$scan_upgrade_buys <- reactable::renderReactable({
+    p <- scan_parts(); shiny::req(p); render_table(p$upgrade_buy, "upgrade")
+  })
+  output$scan_holds <- reactable::renderReactable({
+    p <- scan_parts(); shiny::req(p); render_table(p$holds, "holds")
+  })
+  output$scan_sells <- reactable::renderReactable({
     p <- scan_parts(); shiny::req(p); render_table(p$sell, "sell")
   })
-  output$scan_observational <- reactable::renderReactable({
-    p <- scan_parts(); shiny::req(p); render_table(p$observe, "observe")
+  output$scan_dropped <- reactable::renderReactable({
+    p <- scan_parts(); shiny::req(p); render_table(p$dropped, "dropped")
   })
 
   output$scan_dropped_summary <- shiny::renderUI({
@@ -117,15 +170,15 @@ server_scan <- function(input, output, session, app_state) {
                             "no scan run yet"))
     if (nrow(p$dropped) == 0L) {
       return(htmltools::tags$div(class = "muted",
-                                 "no dropped cards in this scan"))
+                                 "no dropped or invalid cards in this scan"))
     }
-    reasons <- table(p$dropped$gates_failed_csv)
+    reasons <- table(p$dropped$flip_reason_codes)
     htmltools::tagList(
       htmltools::tags$div(class = "muted",
-        sprintf("%d cards dropped:", nrow(p$dropped))),
+        sprintf("%d cards dropped / invalid:", nrow(p$dropped))),
       htmltools::tags$ul(
         lapply(names(reasons), function(r) {
-          htmltools::tags$li(sprintf("%s — %d card(s)", r, reasons[[r]]))
+          htmltools::tags$li(sprintf("%s - %d card(s)", r, reasons[[r]]))
         })
       )
     )
@@ -138,7 +191,7 @@ server_scan <- function(input, output, session, app_state) {
     borderColor = "rgba(63,63,70,0.6)",
     color = "#fafafa",
     cellPadding = "6px 10px",
-    headerStyle = list(color = "#10b981",
+    headerStyle = list(color = "#a1a1aa",
                        letterSpacing = "0.15em",
                        fontSize = "10px",
                        textTransform = "uppercase")

@@ -59,6 +59,69 @@ signal_pill <- function(action) {
   )
 }
 
+#' Per-tab "model + data version" banner.
+#' Renders a thin line above each tab's first section telling the user
+#' the model version, last code-update date, and a slot for the tab's
+#' own freshness indicator.
+#' @export
+tab_version_banner <- function(tab_name,
+                               model_version = "v1.1.0",
+                               model_updated = "2026-05-04",
+                               extra = NULL) {
+  htmltools::tags$div(
+    class = "tab-version-banner",
+    htmltools::tags$span(class = "tvb-tab", toupper(tab_name)),
+    htmltools::tags$span(class = "tvb-sep", "·"),
+    htmltools::tags$span(class = "tvb-version",
+                         paste("model", model_version)),
+    htmltools::tags$span(class = "tvb-sep", "·"),
+    htmltools::tags$span(class = "tvb-updated",
+                         paste("updated", model_updated)),
+    if (!is.null(extra)) htmltools::tagList(
+      htmltools::tags$span(class = "tvb-sep", "·"), extra) else NULL
+  )
+}
+
+#' Tier badge — DIAMOND / GOLD / SILVER / BRONZE / ABSTAIN.
+#' @export
+tier_pill <- function(tier) {
+  cls <- switch(tier,
+                "DIAMOND" = "tier-diamond",
+                "GOLD"    = "tier-gold",
+                "SILVER"  = "tier-silver",
+                "BRONZE"  = "tier-bronze",
+                "ABSTAIN" = "tier-abstain",
+                "tier-abstain")
+  glyph <- switch(tier,
+                  "DIAMOND" = "♦", "GOLD" = "★",
+                  "SILVER" = "◆", "BRONZE" = "▲",
+                  "⊘")
+  htmltools::tags$span(
+    class = paste("pill tier-pill", cls),
+    htmltools::tags$span(class = "tier-glyph", glyph),
+    htmltools::tags$span(class = "tier-label", tier)
+  )
+}
+
+#' Freshness badge for the CARD-tab listing fetch timestamp.
+#' tone is decided by age in hours: <1 fresh, 1-24 amber, >=48 bad.
+#' @export
+freshness_badge <- function(fetched_at = NULL, label = "LISTING FETCHED") {
+  if (is.null(fetched_at) || !inherits(fetched_at, c("POSIXct", "POSIXt"))) {
+    return(htmltools::tags$span(class = "pill freshness-unknown",
+                                paste(label, "—")))
+  }
+  age_h <- as.numeric(difftime(Sys.time(), fetched_at, units = "hours"))
+  cls <- if (!is.finite(age_h)) "freshness-unknown" else
+         if (age_h < 1)         "freshness-fresh"   else
+         if (age_h < 24)        "freshness-stale"   else
+                                "freshness-bad"
+  htmltools::tags$span(
+    class = paste("pill freshness", cls),
+    sprintf("%s · %s", label, format(fetched_at, "%Y-%m-%d %H:%M %Z"))
+  )
+}
+
 #' Static badge that explicitly disclaims LLM commentary as a non-signal.
 #' @export
 not_a_signal_badge <- function() {

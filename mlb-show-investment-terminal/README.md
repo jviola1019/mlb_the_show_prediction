@@ -1,5 +1,55 @@
 # MLB · INVESTMENT TERMINAL
 
+## React + Python Rebuild
+
+The current Shiny app remains the stable legacy app while the React parity
+build is developed beside it. The new build uses React for the terminal UI and
+FastAPI/Python as the sole quant owner. It is served from one Docker image via
+`Dockerfile.react`; Render uses `render.yaml`, and Hugging Face Docker Spaces
+can use the files under `huggingface/`.
+
+Local React/Python run:
+
+```powershell
+python -m pip install -e ".[test]"
+cd frontend
+npm install
+npm run build
+cd ..
+$env:MLB_SHOW_STATIC_DIR = "$PWD\frontend\dist"
+uvicorn mlb_show_terminal.api:app --host 0.0.0.0 --port 7860
+```
+
+Open `http://127.0.0.1:7860`. On a phone on the same Wi-Fi, use
+`http://<desktop-lan-ip>:7860`.
+
+React parity audit:
+
+```powershell
+mlb-show-terminal audit-parity --repo . --output-json artifacts/audit/parity_matrix.json --output-md artifacts/audit/parity_matrix.md
+```
+
+The React/FastAPI Market Scan now exposes synchronous `/api/scan` for
+reproducible tests and transient in-memory scan jobs via `/api/scan/jobs`.
+Scan rows keep Shiny-style partition fields for Flip Buys, Upgrade Buys,
+Holds, Sells, and Dropped / Invalid while preserving nested Python quant
+outputs.
+
+Publish the Hugging Face Docker Space:
+
+```powershell
+python -m pip install -e ".[deploy]"
+$env:HF_TOKEN = "<token with write access>"
+python scripts/publish_hf_space.py --repo-id jviola1019/mlb-show-investment-terminal
+```
+
+The publish script uploads a clean Space bundle only: React source, Python
+API/package files, root `Dockerfile`, and Space `README.md`. It excludes Shiny
+deployment metadata, `node_modules`, build artifacts, caches, and local test
+output.
+
+## Shiny Legacy App
+
 Server-side R Shiny app for quantitative analysis of the MLB The Show 26
 in-game card market. Live data only — no synthetic prices ever shipped to
 the user. Every recommendation is gated behind 6 statistical-validation
@@ -7,7 +57,7 @@ checks; the app refuses to publish an action verb when validation fails.
 
 ## What it does
 
-Five tabs:
+Six tabs:
 
 - **CARD** — search → load a UUID from `mlb26.theshow.com/apis/listing.json`
   → block-bootstrap forecast cone (Politis-Romano stationary, 1500 sims)

@@ -53,7 +53,17 @@ server_card <- function(input, output, session, app_state) {
     shinybusy::show_modal_spinner(spin = "fading-circle", color = "#10b981",
                                   text = "fetching listing.json...")
     on.exit(shinybusy::remove_modal_spinner(), add = TRUE)
-    get_listing(input$card_uuid)
+    L <- get_listing(input$card_uuid)
+    # Append to api_log so OVERALL tab can show freshness.
+    now_n <- as.numeric(Sys.time())
+    if (is.null(L$error)) {
+      app_state$current_listing <- L
+      app_state$api_log$theshow_ok <- c(app_state$api_log$theshow_ok, now_n)
+      app_state$last_card_listing_at <- Sys.time()
+    } else {
+      app_state$api_log$theshow_err <- c(app_state$api_log$theshow_err, now_n)
+    }
+    L
   }, ignoreInit = TRUE)
 
   # Auto-load when search row is clicked + UUID populated
@@ -249,6 +259,17 @@ server_card <- function(input, output, session, app_state) {
     score_text <- if (is.na(rec$score)) "score — (gated)" else
       sprintf("score %+d", rec$score)
     verdict_pill <- pill(v$status, v$badge_tone)
+    # Phase H: tier grade overlay
+    cal_chk <- tryCatch(calibration_check(), error = function(e) NULL)
+    cal_delta <- if (!is.null(cal_chk)) cal_chk$delta else NA_real_
+    w_for_tier <- tryCatch(wfcv(), error = function(e) NULL)
+    tier <- tier_grade(verdict = v, gates = g,
+                       liquidity_score = liq$score,
+                       wfcv = w_for_tier,
+                       holdout_brier_delta = cal_delta)
+    tier_p <- tier_pill(tier$tier)
+    fetched_at <- app_state$last_card_listing_at
+    fresh_p <- freshness_badge(fetched_at, label = "LISTING FETCHED")
     reasons_block <- if (length(v$reasons) > 0L) {
       htmltools::tags$div(class = "verdict-reasons",
         htmltools::tags$div(class = "verdict-headline", v$headline),
@@ -257,13 +278,15 @@ server_card <- function(input, output, session, app_state) {
     } else NULL
 
     htmltools::tagList(
+      htmltools::tags$div(class = "dashboard-status-row", fresh_p),
       htmltools::tags$div(class = "target-head",
         htmltools::tags$div(class = "target-name", item$name %||% "?"),
         pill(item$rarity %||% "?", rarity_pill_tone(item$rarity)),
         htmltools::tags$span(class = "target-ovr",
                              paste0("OVR ", item$ovr %||% "?")),
         htmltools::tags$span(class = "target-team", item$team %||% ""),
-        verdict_pill
+        verdict_pill,
+        tier_p
       ),
       htmltools::tags$div(class = "target-signal-row",
         signal_pill(rec$action),

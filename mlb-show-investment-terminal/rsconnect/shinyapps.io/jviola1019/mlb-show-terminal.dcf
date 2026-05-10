@@ -5,6 +5,6 @@ account: jviola1019
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 17280117
-bundleId: 11943230
+bundleId: 11955763
 url: https://jviola1019.shinyapps.io/mlb-show-terminal/
 version: 1

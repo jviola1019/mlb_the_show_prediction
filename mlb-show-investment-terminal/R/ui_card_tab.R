@@ -8,6 +8,8 @@ ui_card_tab <- function() {
     htmltools::tags$div(
       class = "tab-panel card-tab",
 
+      tab_version_banner("CARD",
+        extra = htmltools::tags$span("live: mlb26.theshow.com listings + listing.json")),
       htmltools::tags$div(class = "roster-slot",
                           shiny::uiOutput("card_roster_banner")),
 

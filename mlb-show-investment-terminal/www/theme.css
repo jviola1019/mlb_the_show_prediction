@@ -81,7 +81,7 @@ a:hover { text-shadow: var(--neon-emerald-glow); }
 }
 
 .nav-tabs .nav-link {
-  color: var(--muted);
+  color: #a1a1aa;
   letter-spacing: 0.2em;
   font-size: 0.72rem;
   text-transform: uppercase;
@@ -90,12 +90,12 @@ a:hover { text-shadow: var(--neon-emerald-glow); }
   position: relative;
   transition: color 200ms;
 }
-.nav-tabs .nav-link:hover { color: var(--fg); }
+.nav-tabs .nav-link:hover { color: #d4d4d8; }
 .nav-tabs .nav-link.active {
-  color: var(--neon-emerald);
+  color: #d4d4d8;
   background: transparent;
-  border-bottom: 2px solid var(--neon-emerald);
-  text-shadow: var(--neon-emerald-glow);
+  border-bottom: 2px solid #71717a;
+  text-shadow: none;
 }
 
 /* ---------- Tab panel container ----------- */
@@ -314,6 +314,103 @@ a:hover { text-shadow: var(--neon-emerald-glow); }
   font-size: 0.72rem; color: var(--fg);
 }
 
+/* ---------- Tab version banner ----------- */
+.tab-version-banner {
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  background: rgba(0,0,0,0.55);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  text-transform: uppercase;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+.tvb-tab     { color: var(--neon-emerald); font-weight: 700; }
+.tvb-sep     { color: var(--dim); }
+.tvb-version { color: var(--fg); }
+.tvb-updated { color: var(--muted); }
+
+/* ---------- Tier pills ----------- */
+.tier-pill {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.22rem 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+.tier-pill .tier-glyph { font-size: 0.8em; opacity: 0.9; }
+
+.tier-diamond {
+  color: #7dd3fc;
+  border: 1px solid rgba(56,189,248,0.7);
+  background: rgba(56,189,248,0.08);
+  text-shadow: 0 0 6px rgba(56,189,248,0.55);
+}
+.tier-gold {
+  color: #fde68a;
+  border: 1px solid rgba(251,191,36,0.7);
+  background: rgba(251,191,36,0.08);
+  text-shadow: 0 0 4px rgba(251,191,36,0.5);
+}
+.tier-silver {
+  color: #d4d4d8;
+  border: 1px solid rgba(113,113,122,0.7);
+  background: rgba(82,82,91,0.20);
+}
+.tier-bronze {
+  color: #fdba74;
+  border: 1px dashed rgba(249,115,22,0.65);
+  background: rgba(249,115,22,0.06);
+}
+.tier-abstain {
+  color: #a1a1aa;
+  border: 1px dashed rgba(82,82,91,0.7);
+  background: rgba(0,0,0,0.5);
+  letter-spacing: 0.32em;
+}
+
+/* ---------- Freshness badge ----------- */
+.pill.freshness {
+  letter-spacing: 0.12em;
+  font-size: 0.65rem;
+}
+.freshness-fresh   {
+  color: #6ee7b7;
+  border: 1px solid rgba(16,185,129,0.55);
+  background: rgba(16,185,129,0.08);
+}
+.freshness-stale   {
+  color: #fcd34d;
+  border: 1px solid rgba(251,191,36,0.55);
+  background: rgba(251,191,36,0.08);
+}
+.freshness-bad     {
+  color: #fda4af;
+  border: 1px solid rgba(244,63,94,0.55);
+  background: rgba(244,63,94,0.08);
+}
+.freshness-unknown {
+  color: #a1a1aa;
+  border: 1px dashed rgba(82,82,91,0.7);
+  background: rgba(0,0,0,0.4);
+}
+
+/* ---------- Overall dashboard tab ----------- */
+.overall-tab .stat-grid-3 .stat-value {
+  font-size: 1.15rem;
+}
+.dashboard-status-row {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+}
+.tier-bar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0,1fr));
+  gap: 0.4rem;
+}
+@media (max-width: 540px) { .tier-bar { grid-template-columns: 1fr 1fr; } }
+
 /* ---------- Not-a-signal badge ----------- */
 .not-a-signal-badge {
   display: inline-block;
@@ -437,9 +534,16 @@ body[data-verdict="OBSERVATIONAL ONLY"] .pill-warn {
   gap: 0.6rem;
   align-items: end;
 }
+.row-4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 0.6rem;
+  align-items: end;
+}
 @media (max-width: 540px) {
   .row-2 { grid-template-columns: 1fr; }
   .row-3 { grid-template-columns: 1fr; }
+  .row-4 { grid-template-columns: 1fr; }
 }
 .search-actions { padding-bottom: 0.05rem; }
 
@@ -607,7 +711,7 @@ label {
 
 /* ---------- Reactable theme tweaks ----------- */
 .rt-table { font-family: "JetBrains Mono", monospace !important; }
-.rt-header { color: var(--neon-emerald) !important; }
+.rt-header { color: #a1a1aa !important; }
 
 /* ---------- External-links list ----------- */
 .external-links { padding-left: 1rem; margin: 0; }

@@ -1,0 +1,77 @@
+import { useMutation } from "@tanstack/react-query";
+import { CheckCircle2 } from "lucide-react";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useState } from "react";
+import { api } from "../api";
+import type { TerminalContext } from "../appState";
+import { fmtNum, fmtPct, fmtStubs, Panel, Stat } from "../components";
+
+export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
+  const [predictions, setPredictions] = useState('[{"uuid":"a","p_cross_next_threshold":0.9}]');
+  const [labels, setLabels] = useState('[{"uuid":"a","crossed_next_threshold":true}]');
+  const currentAsk = ctx.currentRecord?.raw_ask ?? ctx.currentRecord?.flip?.sell_price ?? "";
+  const currentBid = ctx.currentRecord?.raw_bid ?? ctx.currentRecord?.flip?.buy_price ?? "";
+  const [ask, setAsk] = useState(String(currentAsk));
+  const [bid, setBid] = useState(String(currentBid));
+  const manual = useMutation({
+    mutationFn: () => api.cardValidate({ sell_price: Number(ask), buy_price: Number(bid) }),
+    onSuccess: ctx.markApiOk,
+    onError: ctx.markApiErr
+  });
+  const backtest = useMutation({
+    mutationFn: () => api.backtest({ predictions: JSON.parse(predictions), labels: JSON.parse(labels), n_bins: 5 }),
+    onSuccess: ctx.markApiOk,
+    onError: ctx.markApiErr
+  });
+  const data = backtest.data;
+  const curve = (data?.calibration_curve as Array<Record<string, number>> | undefined) ?? [];
+  return (
+    <div className="grid">
+      <Panel title="Manual Flip Validation" kicker="same formula as backend">
+        <div className="form-row three">
+          <input value={ask} onChange={(e) => setAsk(e.target.value)} placeholder="raw ask / sell price" aria-label="manual ask" />
+          <input value={bid} onChange={(e) => setBid(e.target.value)} placeholder="raw bid / buy price" aria-label="manual bid" />
+          <button onClick={() => manual.mutate()} disabled={manual.isPending || !ask || !bid}><CheckCircle2 size={15} /> Validate</button>
+        </div>
+        {manual.error ? <div className="error">{manual.error.message}</div> : null}
+        {manual.data ? (
+          <div className="stat-grid">
+            <Stat label="After tax" value={fmtStubs((manual.data.validation as Record<string, unknown>)?.manual_after_tax_sale)} />
+            <Stat label="Profit" value={fmtStubs((manual.data.validation as Record<string, unknown>)?.manual_profit)} />
+            <Stat label="ROI" value={fmtPct((manual.data.validation as Record<string, unknown>)?.manual_roi, 2)} />
+            <Stat label="Mismatch" value={String((manual.data.validation as Record<string, unknown>)?.mismatch)} tone={(manual.data.validation as Record<string, unknown>)?.mismatch ? "bad" : "good"} />
+          </div>
+        ) : null}
+      </Panel>
+      <Panel title="Upgrade Backtest" kicker="real labels required">
+        <div className="split">
+          <label>prediction rows<textarea value={predictions} onChange={(e) => setPredictions(e.target.value)} rows={7} /></label>
+          <label>label rows<textarea value={labels} onChange={(e) => setLabels(e.target.value)} rows={7} /></label>
+        </div>
+        <button onClick={() => backtest.mutate()} disabled={backtest.isPending}><CheckCircle2 size={15} /> Run backtest</button>
+        {backtest.error ? <div className="error">{backtest.error.message}</div> : null}
+        {data ? (
+          <>
+            <div className="stat-grid">
+              <Stat label="Status" value={String(data.status)} tone={data.status === "available" ? "good" : "warn"} />
+              <Stat label="N" value={String(data.n ?? 0)} />
+              <Stat label="Brier" value={fmtNum(data.brier_score, 3)} />
+              <Stat label="Precision" value={fmtPct(data.precision, 1)} />
+              <Stat label="Recall" value={fmtPct(data.recall, 1)} />
+            </div>
+            <div className="chart">
+              <ResponsiveContainer width="100%" height={180}>
+                <LineChart data={curve}>
+                  <XAxis dataKey="mean_predicted" tickFormatter={(v) => `${(Number(v) * 100).toFixed(0)}%`} />
+                  <YAxis tickFormatter={(v) => `${(Number(v) * 100).toFixed(0)}%`} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="observed_rate" stroke="#10b981" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </>
+        ) : null}
+      </Panel>
+    </div>
+  );
+}

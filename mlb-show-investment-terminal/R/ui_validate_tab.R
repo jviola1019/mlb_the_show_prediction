@@ -7,7 +7,13 @@ ui_validate_tab <- function() {
     icon = bsicons::bs_icon("check-circle"),
     htmltools::tags$div(class = "tab-panel validate-tab",
 
-      section_header(1, "WALK-FORWARD CV (LIVE CARD)"),
+      tab_version_banner("VALIDATE",
+        extra = htmltools::tags$span("walk-forward CV on the loaded CARD; no synthetic data")),
+      section_header(1, "MANUAL FLIP MATH (LIVE CARD)"),
+      htmltools::tags$div(class = "panel",
+        shiny::uiOutput("val_flip_math")),
+
+      section_header(2, "WALK-FORWARD CV (LIVE CARD)"),
       htmltools::tags$div(class = "panel muted",
         "This tab uses the price history of the card loaded on the CARD tab. ",
         "No synthetic data."),
@@ -31,11 +37,11 @@ ui_validate_tab <- function() {
                             class = "btn-primary")
       ),
 
-      section_header(2, "DISTRIBUTION OF PER-TRADE BRIER"),
+      section_header(3, "DISTRIBUTION OF PER-TRADE BRIER"),
       htmltools::tags$div(class = "panel",
         plotly::plotlyOutput("val_brier_violin", height = "320px")),
 
-      section_header(3, "SUMMARY"),
+      section_header(4, "SUMMARY"),
       htmltools::tags$div(class = "panel",
         shiny::uiOutput("val_summary"))
     )

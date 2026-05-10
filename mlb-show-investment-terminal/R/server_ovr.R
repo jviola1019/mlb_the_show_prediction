@@ -12,8 +12,16 @@ server_ovr <- function(input, output, session, app_state) {
                                   text = "fetching MLB stats...")
     on.exit(shinybusy::remove_modal_spinner(), add = TRUE)
     role <- if (input$ovr_role == "auto") NULL else input$ovr_role
-    get_recent_vs_season_stats(input$ovr_name, role = role,
-                               today = Sys.Date())
+    out <- tryCatch(get_recent_vs_season_stats(input$ovr_name, role = role,
+                                               today = Sys.Date()),
+                    error = function(e) NULL)
+    now_n <- as.numeric(Sys.time())
+    if (!is.null(out) && !is.null(out$player)) {
+      app_state$api_log$mlb_ok <- c(app_state$api_log$mlb_ok, now_n)
+    } else {
+      app_state$api_log$mlb_err <- c(app_state$api_log$mlb_err, now_n)
+    }
+    out
   })
 
   output$ovr_stats_summary <- shiny::renderUI({
@@ -38,8 +46,12 @@ server_ovr <- function(input, output, session, app_state) {
                sub = sprintf("season %.3f", s$season$ops %||% NA)),
           stat("AVG 14d",  sprintf("%.3f", s$recent$avg %||% NA),
                sub = sprintf("season %.3f", s$season$avg %||% NA)),
-          stat("OBP 14d",  sprintf("%.3f", s$recent$obp %||% NA),
-               sub = sprintf("season %.3f", s$season$obp %||% NA))
+          stat("PA 14d",  sprintf("%.0f",
+                                  s$recent$plateAppearances %||%
+                                    s$recent$atBats %||% NA),
+               sub = sprintf("season %.0f",
+                             s$season$plateAppearances %||%
+                               s$season$atBats %||% NA))
         )
       } else {
         htmltools::tags$div(class = "stat-grid stat-grid-3",
@@ -47,7 +59,8 @@ server_ovr <- function(input, output, session, app_state) {
                sub = sprintf("season %.2f", s$season$era %||% NA)),
           stat("WHIP 14d", sprintf("%.2f", s$recent$whip %||% NA),
                sub = sprintf("season %.2f", s$season$whip %||% NA)),
-          stat("IP 14d",   sprintf("%.1f", s$recent$inningsPitched %||% NA))
+          stat("IP 14d",   sprintf("%.1f", s$recent$inningsPitched %||% NA),
+               sub = sprintf("season %.1f", s$season$inningsPitched %||% NA))
         )
       }
     )
@@ -60,33 +73,72 @@ server_ovr <- function(input, output, session, app_state) {
       return(htmltools::tags$div(class = "muted",
                                  "no player loaded"))
     }
-    pred <- predict_price_change(
+    manual_new_rank <- suppressWarnings(as.numeric(input$ovr_new_rank))
+    loaded_new_rank <- tryCatch(
+      app_state$current_listing$item$new_rank %||% NA_real_,
+      error = function(e) NA_real_
+    )
+    new_rank <- if (is.finite(manual_new_rank)) manual_new_rank
+                else loaded_new_rank
+    pred <- roster_upgrade_engine(
       stats_recent = s$recent,
       stats_season = s$season,
       role = s$role,
       current_ovr = input$ovr_current,
-      rarity = input$ovr_rarity
+      rarity = input$ovr_rarity,
+      new_rank = new_rank
     )
-    delta_tone <- if (pred$delta_ovr > 0) "bull" else
-      if (pred$delta_ovr < 0) "bear" else "neutral"
-    boundary_tone <- switch(pred$boundary$risk,
-                            high = "bear", medium = "warn",
-                            low = "neutral")
+    py_score <- tryCatch(
+      python_score_card(list(
+        current_ovr = input$ovr_current,
+        rarity = input$ovr_rarity,
+        new_rank = new_rank,
+        role = s$role,
+        recent = s$recent,
+        season = s$season,
+        liquidity_score = 1,
+        raw_ask = NA_real_,
+        raw_bid = NA_real_
+      )),
+      error = function(e) NULL
+    )
+    py_pred <- tryCatch(python_result_to_upgrade(py_score),
+                        error = function(e) NULL)
+    if (!is.null(py_pred)) pred <- py_pred
+    action_tone <- switch(pred$action,
+      "BUY SPECULATIVE" = "bull",
+      "WATCH" = "info",
+      "SELL" = "bear",
+      "AVOID" = "warn",
+      "neutral"
+    )
     htmltools::tagList(
+      pill(pred$action, action_tone),
       htmltools::tags$div(class = "stat-grid stat-grid-3",
-        stat("Z-SCORE", sprintf("%+.2f", pred$z),
-             sub = paste(names(pred$components),
-                         sprintf("%.2f", pred$components),
-                         collapse = " · ")),
-        stat("ΔOVR", sprintf("%+d", pred$delta_ovr), tone = delta_tone),
-        stat("ΔPRICE", fmt_signed(pred$total_pct, 1), tone = delta_tone),
-        stat("BOUNDARY", toupper(pred$boundary$risk), tone = boundary_tone,
-             sub = if (pred$boundary$crosses)
-               sprintf("jump +%.0f%%", pred$boundary$jump_pct * 100)
-               else "no crossing"),
-        stat("CONFIDENCE", toupper(pred$confidence)),
-        stat("BASE %", fmt_signed(pred$base_pct, 1))
-      )
+        stat("P(UPGRADE)", fmt_pct(pred$p_upgrade, 1)),
+        stat("P(DOWNGRADE)", fmt_pct(pred$p_downgrade, 1)),
+        stat("P(CROSS NEXT)", fmt_pct(pred$p_cross_next_threshold, 1),
+             sub = sprintf("next %s", pred$next_threshold %||% NA)),
+        stat("DIST NEXT", sprintf("%.0f", pred$distance_to_threshold %||% NA),
+             sub = sprintf("current %.0f", pred$current_ovr %||% NA)),
+        stat("DIST 85", sprintf("%.0f", pred$distance_to_85 %||% NA),
+             sub = "diamond threshold"),
+        stat("NEW RANK", if (is.finite(pred$new_rank))
+          sprintf("%.0f", pred$new_rank) else "—"),
+        stat("CONFIDENCE", sprintf("%.0f", pred$confidence),
+             sub = toupper(pred$confidence_label)),
+        stat("P(CROSS 85)", fmt_pct(pred$p_cross_85, 1)),
+        stat("P(CROSS 90)", fmt_pct(pred$p_cross_90, 1)),
+        stat("EXACT ΔOVR", sprintf("%+d", pred$exact_delta_ovr),
+             sub = "diagnostic only"),
+        stat("MOMENTUM", sprintf("%+.2f", pred$z),
+             sub = pred$recent_vs_season_delta),
+        stat("UPGRADE SCORE", sprintf("%.0f", pred$upgrade_score)),
+        stat("THRESHOLD", if (is.finite(pred$next_threshold))
+          sprintf("%.0f", pred$next_threshold) else "—")
+      ),
+      htmltools::tags$div(class = "flag-list",
+        lapply(pred$reason_codes, function(x) pill(x, "neutral")))
     )
   })
 }

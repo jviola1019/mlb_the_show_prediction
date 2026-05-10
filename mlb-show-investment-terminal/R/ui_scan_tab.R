@@ -1,6 +1,4 @@
-#' MARKET SCAN tab — leaderboards of TOP BUY / TOP SELL across a discovered
-#' or user-pasted UUID universe. Every card on a leaderboard has cleared all
-#' six validation gates from `R/quant_validation.R`.
+#' MARKET SCAN tab.
 #' @export
 ui_scan_tab <- function() {
   bslib::nav_panel(
@@ -8,17 +6,24 @@ ui_scan_tab <- function() {
     icon = bsicons::bs_icon("radar"),
     htmltools::tags$div(class = "tab-panel scan-tab",
 
+      tab_version_banner("MARKET SCAN",
+        extra = htmltools::tags$span("flip math + roster thresholds + forecast diagnostics")),
       section_header(1, "UNIVERSE"),
       htmltools::tags$div(class = "panel",
         shiny::radioButtons("scan_mode", "mode",
-          choices = c("Top Diamonds (live discovery)" = "top_diamonds",
-                      "Paste UUIDs"                   = "paste_uuids",
+          choices = c("Top live rarity" = "top_live",
+                      "Paste UUIDs" = "paste_uuids",
                       "Session history (loaded cards)" = "session_history"),
-          selected = "top_diamonds", inline = FALSE),
+          selected = "top_live", inline = FALSE),
         shiny::conditionalPanel(
-          condition = "input.scan_mode == 'top_diamonds'",
-          shiny::sliderInput("scan_top_n", "N (cards to scan)",
-                             min = 5, max = 50, value = 10, step = 5)
+          condition = "input.scan_mode == 'top_live'",
+          htmltools::tags$div(class = "row-2",
+            shiny::selectInput("scan_rarity", "rarity",
+              choices = c("Gold","Diamond","Silver","Bronze"),
+              selected = "Gold"),
+            shiny::sliderInput("scan_top_n", "N (cards to scan)",
+                               min = 5, max = 50, value = 10, step = 5)
+          )
         ),
         shiny::conditionalPanel(
           condition = "input.scan_mode == 'paste_uuids'",
@@ -33,29 +38,33 @@ ui_scan_tab <- function() {
       section_header(2, "RUN"),
       htmltools::tags$div(class = "panel",
         htmltools::tags$div(class = "muted",
-          "Rate-limited 1.5s/card to respect The Show API. ",
-          "Top-10 scan takes ~20s; top-50 ~75s."),
+          "Rate-limited 1.5s/card for The Show API. ",
+          "Upgrade probabilities use MLB Stats API when player stats resolve."),
         shiny::actionButton("btn_scan", "SCAN UNIVERSE",
                             class = "btn-primary"),
         shiny::uiOutput("scan_progress_slot")
       ),
 
-      section_header(3, "TOP BUY (INVESTABLE only)"),
+      section_header(3, "FLIP BUYS"),
       htmltools::tags$div(class = "panel scan-buy-panel",
-        reactable::reactableOutput("scan_top_buy", height = "auto")),
+        reactable::reactableOutput("scan_flip_buys", height = "auto")),
 
-      section_header(4, "TOP SELL (INVESTABLE only)"),
+      section_header(4, "UPGRADE BUYS"),
+      htmltools::tags$div(class = "panel scan-upgrade-panel",
+        reactable::reactableOutput("scan_upgrade_buys", height = "auto")),
+
+      section_header(5, "HOLDS"),
+      htmltools::tags$div(class = "panel",
+        reactable::reactableOutput("scan_holds", height = "auto")),
+
+      section_header(6, "SELLS"),
       htmltools::tags$div(class = "panel scan-sell-panel",
-        reactable::reactableOutput("scan_top_sell", height = "auto")),
+        reactable::reactableOutput("scan_sells", height = "auto")),
 
-      section_header(5, "OBSERVATIONAL ONLY (direction, no action)"),
+      section_header(7, "DROPPED / INVALID"),
       htmltools::tags$div(class = "panel",
-        reactable::reactableOutput("scan_observational",
-                                   height = "auto")),
-
-      section_header(6, "DROPPED (validation gate failed)"),
-      htmltools::tags$div(class = "panel",
-                          shiny::uiOutput("scan_dropped_summary"))
+        reactable::reactableOutput("scan_dropped", height = "auto"),
+        shiny::uiOutput("scan_dropped_summary"))
     )
   )
 }

@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: mlb-show-investment-terminal-react
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.react
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 7860
+      - key: MLB_SHOW_STATIC_DIR
+        value: /app/frontend/dist
