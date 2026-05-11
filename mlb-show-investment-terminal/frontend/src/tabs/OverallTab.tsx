@@ -2,7 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { Suspense, lazy, useEffect, useState } from "react";
 import { api } from "../api";
 import type { TerminalContext } from "../appState";
-import { formatDateTime, Panel, Pill, Stat } from "../components";
+import {
+  CardIdentity,
+  DensityDots,
+  FreshnessBadge,
+  fmtNum,
+  fmtPct,
+  fmtStubs,
+  formatDateTime,
+  Panel,
+  Pill,
+  SignalPill,
+  Stat,
+} from "../components";
+import { VerdictBanner, blankIf, isInvestable, verdictOf } from "../verdictGuard";
 
 const TierOvrEvScatter3D = lazy(() => import("../viz/TierOvrEvScatter3D"));
 
@@ -20,8 +33,109 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
   const counts = ctx.lastScan?.counts;
   const healthTone = health.data?.status === "ok" ? "good" : health.error ? "bad" : "warn";
 
+  const record = ctx.currentRecord;
+  const cardStatus = record ? verdictOf(record) : null;
+  const overallTone = cardStatus === "INVESTABLE" ? "good" : cardStatus === "OBSERVATIONAL ONLY" ? "warn" : cardStatus ? "bad" : "neutral";
+
   return (
     <div className="grid">
+      {record ? (
+        <Panel
+          title="Current Card"
+          kicker={
+            <span className="kicker-row">
+              <Pill tone={overallTone}>{String(record.name ?? record.card?.name ?? "loaded")}</Pill>
+              {record.fetched_at ? <FreshnessBadge at={record.fetched_at} label="LISTING" /> : null}
+            </span>
+          }
+          className="current-card-panel"
+        >
+          <CardIdentity record={record} />
+          <VerdictBanner record={record} />
+          <div className="stat-grid">
+            <Stat
+              label="Verdict"
+              value={String(cardStatus ?? "-")}
+              tone={overallTone}
+            />
+            <Stat
+              label="Tier"
+              value={String(record.tier ?? record.forecast?.tier ?? "-")}
+            />
+            <Stat
+              label="Current OVR"
+              value={String(record.ovr ?? record.card?.current_ovr ?? "-")}
+            />
+            <Stat
+              label="Rarity"
+              value={String(record.card?.rarity ?? "-")}
+            />
+            <Stat
+              label="Flip signal"
+              value={<SignalPill action={isInvestable(record) ? record.flip?.action : "OBSERVE"} />}
+            />
+            <Stat
+              label="Upgrade signal"
+              value={<SignalPill action={isInvestable(record) ? record.upgrade?.action : "OBSERVE"} />}
+            />
+            <Stat
+              label="Raw ask"
+              value={fmtStubs(record.flip?.sell_price ?? record.card?.raw_ask)}
+            />
+            <Stat
+              label="Raw bid"
+              value={fmtStubs(record.flip?.buy_price ?? record.card?.raw_bid)}
+            />
+            <Stat
+              label="After-tax profit"
+              value={blankIf(record, fmtStubs(record.flip?.profit))}
+              tone={isInvestable(record) && (record.flip?.profit ?? 0) > 0 ? "good" : "neutral"}
+            />
+            <Stat label="ROI" value={blankIf(record, fmtPct(record.flip?.roi, 2))} />
+            <Stat
+              label="P(Cross 85)"
+              value={blankIf(record, fmtPct(record.upgrade?.p_cross_85, 1))}
+            />
+            <Stat
+              label="Forecast E[ret]"
+              value={blankIf(record, fmtPct(record.forecast?.expected_ret, 2))}
+            />
+            <Stat
+              label="Direction"
+              value={String(record.forecast?.direction ?? "-")}
+            />
+            <Stat
+              label="N prices"
+              value={fmtNum(record.forecast?.n_prices, 0)}
+            />
+            <Stat
+              label="Liquidity"
+              value={<DensityDots score={record.flip?.liquidity_score ?? record.card?.liquidity_score} />}
+            />
+            <Stat
+              label="Block length"
+              value={fmtNum(record.forecast?.block_length as number | undefined, 0)}
+            />
+          </div>
+          {record.forecast?.gate_pills?.length ? (
+            <div className="gates-pills">
+              {record.forecast.gate_pills.map((pill) => (
+                <span key={pill.key} className={`pill pill-${pill.tone}`} title={pill.reason}>
+                  {pill.mark} {pill.label}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </Panel>
+      ) : (
+        <Panel title="Current Card" kicker="not loaded">
+          <p className="muted">
+            Search a player on the CARD tab and click Load. Their verdict, tier, OVR, forecast,
+            and flip economics will populate here automatically.
+          </p>
+        </Panel>
+      )}
+
       <Panel title="App Health" kicker={<Pill tone={healthTone}>{String(health.data?.status ?? "checking")}</Pill>}>
         <div className="stat-grid">
           <Stat label="Quant owner" value={String(health.data?.quant_owner ?? "-")} />

@@ -74,6 +74,7 @@ export type ForecastResult = {
   p95_ret?: number | null;
   n_prices?: number;
   tax_rate?: number;
+  block_length?: number;
   reason?: string;
   cone?: Array<{ step: number; p5?: number | null; p50?: number | null; p95?: number | null }>;
   horizons?: Array<Record<string, unknown>>;
