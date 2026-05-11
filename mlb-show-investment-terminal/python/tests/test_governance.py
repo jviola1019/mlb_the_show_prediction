@@ -9,9 +9,10 @@ from __future__ import annotations
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from mlb_show_terminal.forecast import forecast_diagnostics
+from mlb_show_terminal.forecast import _calibration_clean, forecast_diagnostics
 from mlb_show_terminal.governance import (
     ALL_GATE_KEYS,
+    _coerce_dt,
     gates_summary_pills,
     gating_verdict,
     price_history_records,
@@ -211,6 +212,89 @@ class PriceHistoryRecordsTests(unittest.TestCase):
         # No timestamps -> no records (governance can't validate freshness)
         records = price_history_records(listing)
         self.assertEqual(records, [])
+
+    def test_completed_orders_with_the_show_native_format(self):
+        # The actual format returned by mlb26.theshow.com/apis/listing.json:
+        # "MM/DD/YYYY HH:MM:SS" (no timezone). This was the production-blocking
+        # bug that caused every real card to fail data_fresh + history_sufficient.
+        listing = {
+            "completed_orders": [
+                {"date": "05/10/2026 10:00:00", "price": "1200"},
+                {"date": "05/10/2026 11:00:00", "price": "1,210"},  # comma in price
+            ],
+        }
+        records = price_history_records(listing)
+        self.assertEqual(len(records), 2)
+        self.assertEqual(records[1]["price"], 1210.0)
+
+
+class DateParserRegressionTests(unittest.TestCase):
+    """The Show returns timestamps as 'MM/DD/YYYY HH:MM:SS'; the price-history
+    aggregate uses 'MM/DD' (year inferred). Both must parse to UTC datetimes."""
+
+    def test_the_show_completed_orders_format(self):
+        dt = _coerce_dt("05/10/2026 23:29:54")
+        self.assertIsNotNone(dt)
+        assert dt is not None
+        self.assertEqual(dt.year, 2026)
+        self.assertEqual(dt.hour, 23)
+        self.assertEqual(dt.tzinfo, timezone.utc)
+
+    def test_short_price_history_format(self):
+        dt = _coerce_dt("05/10", default_year=2026)
+        self.assertIsNotNone(dt)
+        assert dt is not None
+        self.assertEqual(dt.year, 2026)
+        self.assertEqual(dt.month, 5)
+        self.assertEqual(dt.day, 10)
+
+    def test_iso_format_with_z_suffix(self):
+        dt = _coerce_dt("2026-05-10T23:29:54Z")
+        self.assertIsNotNone(dt)
+        assert dt is not None
+        self.assertEqual(dt.tzinfo, timezone.utc)
+
+    def test_garbage_string_returns_none(self):
+        self.assertIsNone(_coerce_dt("not-a-date"))
+
+
+class CalibrationCleanTests(unittest.TestCase):
+    """Real card walk-forward predictions cluster around 0.5. Gate 7 must
+    grade the densest reliability bin locally, not require all bins populated."""
+
+    def test_single_well_calibrated_bin_passes(self):
+        bins = [{"bin_lo": 0.4, "bin_hi": 0.6, "n": 80,
+                 "mean_pred": 0.501, "observed_rate": 0.512}]
+        result = _calibration_clean({"status": "ok", "bins": bins})
+        self.assertTrue(result["ok"], result.get("reason"))
+
+    def test_miscalibrated_dense_bin_fails(self):
+        bins = [{"bin_lo": 0.4, "bin_hi": 0.6, "n": 80,
+                 "mean_pred": 0.50, "observed_rate": 0.85}]  # 35-point miss
+        result = _calibration_clean({"status": "ok", "bins": bins})
+        self.assertFalse(result["ok"])
+        self.assertIn("calibration miss", result["reason"])
+
+    def test_undersized_bin_fails(self):
+        bins = [{"bin_lo": 0.4, "bin_hi": 0.6, "n": 10,
+                 "mean_pred": 0.50, "observed_rate": 0.50}]
+        result = _calibration_clean({"status": "ok", "bins": bins})
+        self.assertFalse(result["ok"])
+        self.assertIn(">=25", result["reason"])
+
+    def test_status_unavailable_fails(self):
+        result = _calibration_clean({"status": "unavailable", "bins": []})
+        self.assertFalse(result["ok"])
+
+    def test_picks_densest_bin_not_first(self):
+        bins = [
+            {"bin_lo": 0.0, "bin_hi": 0.2, "n": 1,
+             "mean_pred": 0.10, "observed_rate": 0.90},  # miscalibrated but tiny
+            {"bin_lo": 0.4, "bin_hi": 0.6, "n": 80,
+             "mean_pred": 0.50, "observed_rate": 0.51},
+        ]
+        result = _calibration_clean({"status": "ok", "bins": bins})
+        self.assertTrue(result["ok"], result.get("reason"))
 
 
 if __name__ == "__main__":

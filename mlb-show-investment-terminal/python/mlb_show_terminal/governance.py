@@ -54,23 +54,62 @@ def _gate(passed: bool, reason: str = "ok") -> dict[str, Any]:
     return {"passed": bool(passed), "reason": "ok" if passed else reason}
 
 
-def _coerce_dt(value: Any) -> datetime | None:
+_DATETIME_FORMATS = (
+    "%m/%d/%Y %H:%M:%S",  # The Show completed_orders: "05/10/2026 23:26:58"
+    "%m/%d/%Y %I:%M:%S %p",  # "05/10/2026 11:26:58 PM" variant
+    "%m/%d/%Y",  # date-only fallback
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d",
+)
+
+
+def _coerce_dt(value: Any, *, default_year: int | None = None) -> datetime | None:
+    """Parse a timestamp from the heterogeneous shapes returned by The Show.
+
+    Handles:
+    - ISO 8601 (`2026-05-10T23:26:58Z`, `2026-05-10T23:26:58+00:00`)
+    - The Show completed_orders (`05/10/2026 23:26:58`)
+    - The Show price_history daily aggregate (`05/10`) — year inferred from
+      ``default_year`` (or current year if None).
+    - Unix timestamps (int/float seconds)
+    - Native datetime
+    """
     if value is None:
         return None
     if isinstance(value, datetime):
         return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
     if isinstance(value, (int, float)) and math.isfinite(value):
         return datetime.fromtimestamp(float(value), tz=timezone.utc)
-    if isinstance(value, str):
-        s = value.strip()
-        if not s:
-            return None
-        if s.endswith("Z"):
-            s = s[:-1] + "+00:00"
+    if not isinstance(value, str):
+        return None
+    s = value.strip()
+    if not s:
+        return None
+
+    # ISO 8601 (with optional trailing Z)
+    iso_s = s[:-1] + "+00:00" if s.endswith("Z") else s
+    try:
+        parsed = datetime.fromisoformat(iso_s)
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    except ValueError:
+        pass
+
+    # The Show short price-history format "MM/DD" - inject year
+    if len(s) <= 5 and "/" in s and s.count("/") == 1:
+        year = default_year if default_year is not None else datetime.now(timezone.utc).year
         try:
-            return datetime.fromisoformat(s)
+            parsed = datetime.strptime(f"{s}/{year}", "%m/%d/%Y")
+            return parsed.replace(tzinfo=timezone.utc)
         except ValueError:
             return None
+
+    # The Show long format with optional time
+    for fmt in _DATETIME_FORMATS:
+        try:
+            parsed = datetime.strptime(s, fmt)
+            return parsed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
     return None
 
 

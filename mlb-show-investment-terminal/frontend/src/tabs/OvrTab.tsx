@@ -3,15 +3,18 @@ import { Activity, DatabaseZap } from "lucide-react";
 import { api } from "../api";
 import type { TerminalContext } from "../appState";
 import { fmtNum, fmtPct, Panel, Pill, ReasonCodes, SignalPill, SourceLink, Stat } from "../components";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function OvrTab({ ctx }: { ctx: TerminalContext }) {
-  const [playerName, setPlayerName] = useState(ctx.currentRecord?.name ?? "Mike Trout");
+  const recordName = ctx.currentRecord?.name ?? ctx.currentRecord?.card?.name;
+  const recordOvr = ctx.currentRecord?.ovr ?? ctx.currentRecord?.card?.current_ovr;
+  const recordRarity = ctx.currentRecord?.card?.rarity;
+  const [playerName, setPlayerName] = useState(String(recordName ?? "Mike Trout"));
   const [roleMode, setRoleMode] = useState("auto");
   const [form, setForm] = useState({
     role: "hitter",
-    rarity: "Gold",
-    current_ovr: "84",
+    rarity: String(recordRarity ?? "Gold"),
+    current_ovr: String(recordOvr ?? "84"),
     new_rank: "",
     recent_ops: "0.950",
     season_ops: "0.780",
@@ -53,6 +56,20 @@ export function OvrTab({ ctx }: { ctx: TerminalContext }) {
     },
     onError: ctx.markApiErr
   });
+
+  // When CARD tab loads a player, propagate name + OVR + rarity into this form
+  // and auto-fetch their MLB stats so the user doesn't have to retype.
+  useEffect(() => {
+    if (!recordName) return;
+    setPlayerName(String(recordName));
+    setForm((prev) => ({
+      ...prev,
+      current_ovr: String(recordOvr ?? prev.current_ovr),
+      rarity: String(recordRarity ?? prev.rarity),
+    }));
+    stats.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordName, recordOvr, recordRarity]);
   const score = useMutation({
     mutationFn: () => api.upgrade({
       role: form.role,

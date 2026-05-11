@@ -6,7 +6,7 @@ import { api } from "../api";
 import type { TerminalContext } from "../appState";
 import { fmtNum, fmtPct, fmtStubs, Panel, Stat } from "../components";
 import { VerdictBanner, verdictOf } from "../verdictGuard";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import type { CalibrationBin } from "../types";
 
 const ReliabilityRibbon3D = lazy(() => import("../viz/ReliabilityRibbon3D"));
@@ -23,6 +23,20 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
     onSuccess: ctx.markApiOk,
     onError: ctx.markApiErr
   });
+
+  // When CardTab loads a card, copy its bid/ask into the validate form and
+  // run the manual-flip check automatically. The user sees their loaded
+  // card's flip economics validated without any extra typing.
+  useEffect(() => {
+    const newAsk = ctx.currentRecord?.raw_ask ?? ctx.currentRecord?.flip?.sell_price;
+    const newBid = ctx.currentRecord?.raw_bid ?? ctx.currentRecord?.flip?.buy_price;
+    if (newAsk != null && newBid != null) {
+      setAsk(String(newAsk));
+      setBid(String(newBid));
+      manual.mutate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx.currentRecord?.uuid]);
   const backtest = useMutation({
     mutationFn: () => api.backtest({ predictions: JSON.parse(predictions), labels: JSON.parse(labels), n_bins: 5 }),
     onSuccess: ctx.markApiOk,
