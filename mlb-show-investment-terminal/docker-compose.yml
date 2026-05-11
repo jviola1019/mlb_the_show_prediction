@@ -1,8 +1,0 @@
-services:
-  app:
-    build: .
-    ports:
-      - "3838:3838"
-    environment:
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-    restart: unless-stopped

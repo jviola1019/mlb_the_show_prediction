@@ -1,0 +1,10 @@
+services:
+  terminal:
+    build:
+      context: .
+      dockerfile: Dockerfile.react
+    ports:
+      - "7860:7860"
+    environment:
+      PORT: 7860
+    restart: unless-stopped
