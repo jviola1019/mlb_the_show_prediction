@@ -1,6 +1,19 @@
 import { useMutation } from "@tanstack/react-query";
 import { ClipboardCheck, Search } from "lucide-react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Line,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { api } from "../api";
 import type { TerminalContext } from "../appState";
 import {
@@ -168,13 +181,36 @@ function TargetPanel({ record }: { record: ScoreRecord }) {
 }
 
 function DiagnosticsPanel({ record }: { record: ScoreRecord }) {
-  const chart = [
-    { metric: "P5", value: record.forecast?.p5_ret ?? null },
-    { metric: "E", value: record.forecast?.expected_ret ?? null },
-    { metric: "P95", value: record.forecast?.p95_ret ?? null }
-  ];
-  const hasCone = Boolean(record.forecast?.cone?.length);
-  const chartData = hasCone ? record.forecast?.cone ?? [] : chart;
+  const cone = record.forecast?.cone ?? [];
+  const hasCone = cone.length > 0;
+  // Bank-of-England-style fan chart: shaded band between p5 and p95 with the
+  // p50 median line on top. Recharts AreaChart shades from baseline 0, so we
+  // synthesize a "band" series = (p95 - p5) stacked on a base series = p5.
+  const fanData = cone.map((p) => {
+    const p5 = typeof p.p5 === "number" ? p.p5 : null;
+    const p95 = typeof p.p95 === "number" ? p.p95 : null;
+    return {
+      step: p.step,
+      p5,
+      p50: p.p50 ?? null,
+      p95,
+      base: p5,
+      band: p5 != null && p95 != null ? p95 - p5 : null,
+    };
+  });
+  const askPrice = Number(record.flip?.sell_price ?? record.card?.raw_ask) || null;
+  // Multi-horizon EV bars: read horizons[] from the diagnostic payload and
+  // colour-code positive vs negative expected return so the user gets the
+  // signal at a glance instead of reading a numeric table.
+  const horizons = (record.forecast?.horizons ?? []) as Array<Record<string, unknown>>;
+  const horizonData = horizons.map((h) => ({
+    horizon: `${h.horizon ?? "-"}d`,
+    expected_ret: typeof h.expected_ret === "number" ? h.expected_ret : 0,
+    p_profit: typeof h.p_profit === "number" ? h.p_profit : null,
+    half_kelly: typeof h.half_kelly === "number" ? h.half_kelly : null,
+    p5_ret: typeof h.p5_ret === "number" ? h.p5_ret : null,
+    p95_ret: typeof h.p95_ret === "number" ? h.p95_ret : null,
+  }));
   const gates = record.forecast?.gates ?? {};
   const failedGates = Object.entries(gates)
     .filter(([, g]) => g && !g.passed)
@@ -198,25 +234,71 @@ function DiagnosticsPanel({ record }: { record: ScoreRecord }) {
             <ForecastSurface3D record={record} />
           </Suspense>
         ) : null}
-        <div className="chart tall">
-          <ResponsiveContainer width="100%" height={150}>
-            <LineChart data={chartData as Array<Record<string, unknown>>}>
-              <XAxis dataKey={hasCone ? "step" : "metric"} />
-              <YAxis tickFormatter={(v) => hasCone ? fmtStubs(v) : `${(Number(v) * 100).toFixed(0)}%`} />
-              <Tooltip formatter={(v) => hasCone ? fmtStubs(v) : fmtPct(v, 2)} />
-              {hasCone ? (
-                <>
-                  <Line type="monotone" dataKey="p95" stroke="#38bdf8" dot={false} />
-                  <Line type="monotone" dataKey="p50" stroke="#10b981" dot={false} />
-                  <Line type="monotone" dataKey="p5" stroke="#fbbf24" dot={false} />
-                </>
-              ) : <Line type="monotone" dataKey="value" stroke="#60a5fa" dot />}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        {hasCone ? (
+          <>
+            <div className="stat-label">Forecast cone · 90% band + median (after-tax stubs)</div>
+            <div className="chart tall">
+              <ResponsiveContainer width="100%" height={220}>
+                <ComposedChart data={fanData} margin={{ top: 12, right: 18, left: 6, bottom: 4 }}>
+                  <defs>
+                    <linearGradient id="fanBand" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.45} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.08} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="rgba(63,63,70,0.28)" vertical={false} />
+                  <XAxis dataKey="step" tick={{ fill: "#9ca3af", fontSize: 11 }} label={{ value: "horizon step", position: "insideBottom", offset: -2, fill: "#9ca3af", fontSize: 11 }} />
+                  <YAxis tick={{ fill: "#9ca3af", fontSize: 11 }} tickFormatter={(v) => fmtStubs(v)} domain={["auto", "auto"]} />
+                  <Tooltip
+                    contentStyle={{ background: "#0a0e10", border: "1px solid rgba(63,63,70,0.6)" }}
+                    formatter={(v: unknown, name) => {
+                      const key = String(name ?? "");
+                      if (key === "base" || key === "band") return ["", ""];
+                      return [fmtStubs(v), key];
+                    }}
+                    labelFormatter={(label) => `step ${label}`}
+                  />
+                  {askPrice ? <ReferenceLine y={askPrice} stroke="#94a3b8" strokeDasharray="4 4" label={{ value: "ask", position: "right", fill: "#94a3b8", fontSize: 10 }} /> : null}
+                  <Area type="monotone" dataKey="base" stackId="fan" stroke="transparent" fill="transparent" isAnimationActive={false} />
+                  <Area type="monotone" dataKey="band" stackId="fan" stroke="transparent" fill="url(#fanBand)" isAnimationActive={false} />
+                  <Line type="monotone" dataKey="p50" stroke="#34d399" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="p95" stroke="#38bdf8" strokeWidth={1} strokeDasharray="2 4" dot={false} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="p5" stroke="#fbbf24" strokeWidth={1} strokeDasharray="2 4" dot={false} isAnimationActive={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </>
+        ) : null}
+        {horizonData.length ? (
+          <>
+            <div className="stat-label">Multi-horizon expected return</div>
+            <div className="chart">
+              <ResponsiveContainer width="100%" height={170}>
+                <BarChart data={horizonData} margin={{ top: 8, right: 18, left: 6, bottom: 4 }}>
+                  <CartesianGrid stroke="rgba(63,63,70,0.28)" vertical={false} />
+                  <XAxis dataKey="horizon" tick={{ fill: "#9ca3af", fontSize: 11 }} />
+                  <YAxis tick={{ fill: "#9ca3af", fontSize: 11 }} tickFormatter={(v) => `${(Number(v) * 100).toFixed(0)}%`} />
+                  <Tooltip
+                    contentStyle={{ background: "#0a0e10", border: "1px solid rgba(63,63,70,0.6)" }}
+                    formatter={(v: unknown, name) => {
+                      const key = String(name ?? "");
+                      return [key === "expected_ret" ? fmtPct(v, 2) : String(v), key.replaceAll("_", " ")];
+                    }}
+                  />
+                  <ReferenceLine y={0} stroke="#475569" />
+                  <Bar dataKey="expected_ret" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+                    {horizonData.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.expected_ret >= 0 ? "#10b981" : "#f43f5e"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </>
+        ) : null}
         <div className="split">
           <div>
-            <div className="stat-label">Multi-horizon EV</div>
+            <div className="stat-label">Multi-horizon EV detail</div>
             <MiniTable rows={record.forecast?.horizons ?? []} columns={["horizon", "expected_ret", "p_profit", "p5_ret", "p95_ret", "half_kelly"]} percentCols={["expected_ret", "p_profit", "p5_ret", "p95_ret", "half_kelly"]} />
           </div>
           <div>
