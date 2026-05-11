@@ -15,6 +15,20 @@ export type FlipResult = {
   reason_codes_csv?: string;
 };
 
+export type DecisionResult = {
+  action: string;
+  responsible_channel: "flip" | "upgrade" | "forecast" | "data_quality" | "invalid" | string;
+  reason_codes?: string[];
+  reason_codes_csv?: string;
+  blockers?: string[];
+  blockers_csv?: string;
+  formula_inputs?: Record<string, unknown>;
+  confidence?: number | null;
+  model_status?: string;
+  probability_kind?: string;
+  explanation?: string;
+};
+
 export type UpgradeResult = {
   action: string;
   current_ovr?: number | null;
@@ -31,6 +45,9 @@ export type UpgradeResult = {
   p_cross_90?: number | null;
   confidence?: number | null;
   upgrade_score?: number | null;
+  model_status?: string;
+  probability_kind?: string;
+  probability_note?: string;
   reason_codes?: string[];
 };
 
@@ -74,6 +91,16 @@ export type ForecastResult = {
   p95_ret?: number | null;
   n_prices?: number;
   tax_rate?: number;
+  formula?: {
+    price_basis?: string;
+    current_price?: number | null;
+    ask?: number | null;
+    bid?: number | null;
+    spread_ratio?: number | null;
+    tax_rate?: number | null;
+    return_formula?: string;
+    note?: string;
+  };
   block_length?: number;
   reason?: string;
   cone?: Array<{ step: number; p5?: number | null; p50?: number | null; p95?: number | null }>;
@@ -117,8 +144,10 @@ export type ScoreRecord = {
   forecast?: ForecastResult;
   validation?: Record<string, unknown>;
   decision_channels?: Record<string, string>;
+  decision?: DecisionResult;
   fetched_at?: string;
   source_url?: string;
+  rarity?: string;
   raw_bid?: number | null;
   raw_ask?: number | null;
   after_tax_sale?: number | null;
@@ -145,12 +174,21 @@ export type ScoreRecord = {
   upgrade_action?: string;
   forecast_direction?: string;
   forecast_ev_7d?: number | null;
+  forecast_formula?: string | null;
   flip_reason_codes?: string;
   upgrade_reason_codes?: string;
+  decision_action?: string;
+  responsible_channel?: string;
+  decision_reason_codes?: string;
+  decision_blockers?: string;
+  model_status?: string;
+  probability_kind?: string;
   gates_failed_csv?: string;
   scan_status?: string;
   verdict?: Verdict;
   verdict_status?: VerdictStatus | string;
+  decision_tier?: string;
+  validation_tier?: string;
   tier?: string;
   scan_index?: number;
   scan_total?: number;
@@ -179,9 +217,10 @@ export type ScanResponse = {
     rate_limit_message: string;
   };
   records: ScoreRecord[];
-  partitions: Record<"flip_buys" | "upgrade_buys" | "holds" | "sells" | "observational" | "dropped", ScoreRecord[]>;
+  partitions: Record<"flip_buys" | "upgrade_buys" | "watch" | "holds" | "sells" | "no_trade" | "observational" | "dropped", ScoreRecord[]>;
   counts: Record<string, number>;
   tier_distribution?: Record<string, number>;
+  rarity_distribution?: Record<string, number>;
   market_health?: Record<string, number | null>;
   dropped_summary?: Record<string, number>;
 };

@@ -184,6 +184,17 @@ class ForecastDiagnosticsIntegrationTests(unittest.TestCase):
         self.assertIn("tax_rate", low_tax)
         self.assertEqual(low_tax["tax_rate"], 0.05)
 
+    def test_forecast_formula_is_explicit_and_separate_from_flip_roi(self):
+        out = forecast_diagnostics(self._good_listing())
+        self.assertIn("formula", out)
+        self.assertEqual(
+            out["formula"]["return_formula"],
+            "((terminal_price * spread_ratio * (1 - tax_rate)) - current_price) / current_price",
+        )
+        self.assertEqual(out["formula"]["tax_rate"], 0.10)
+        self.assertIn("diagnostic", out["formula"]["note"].lower())
+        self.assertIn("expected_ret", out)
+
     def test_short_listing_returns_not_investable(self):
         out = forecast_diagnostics({
             "item": {"uuid": VALID_UUID},

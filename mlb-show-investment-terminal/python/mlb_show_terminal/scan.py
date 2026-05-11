@@ -80,10 +80,6 @@ def _stats_for_listing(listing: dict[str, Any]) -> dict[str, Any] | None:
 def _status_from_record(record: dict[str, Any]) -> str:
     if record.get("status") == "dropped":
         return "INVALID"
-    flip = record.get("flip") or {}
-    upgrade = record.get("upgrade") or {}
-    if flip.get("action") == "NO TRADE" and upgrade.get("action") == "AVOID":
-        return "INVALID"
     return "VALID"
 
 
@@ -109,6 +105,159 @@ def _verdict_from_record(record: dict[str, Any]) -> str:
     return "OBSERVATIONAL ONLY"
 
 
+def _listify(values: Any) -> list[str]:
+    if isinstance(values, list):
+        return [str(value) for value in values if value]
+    if isinstance(values, str):
+        return [part.strip() for part in values.split(",") if part.strip()]
+    return []
+
+
+def _unique(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(value for value in values if value))
+
+
+def _decision_for_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Build the final row decision without overwriting channel details."""
+
+    if record.get("status") == "dropped":
+        reason = str(record.get("reason") or "fetch_error")
+        return {
+            "action": "DROPPED / INVALID",
+            "responsible_channel": "invalid",
+            "reason_codes": _unique(["DROPPED_INVALID", reason]),
+            "reason_codes_csv": _csv(["DROPPED_INVALID", reason]),
+            "blockers": [reason],
+            "blockers_csv": reason,
+            "formula_inputs": {},
+            "confidence": 0,
+            "model_status": "invalid_or_fetch_failed",
+            "probability_kind": "none",
+            "explanation": f"Row was dropped because {reason}.",
+        }
+
+    flip = record.get("flip") or {}
+    upgrade = record.get("upgrade") or {}
+    forecast = record.get("forecast") or {}
+    verdict = forecast.get("verdict") if isinstance(forecast.get("verdict"), dict) else {}
+    verdict_status = verdict.get("status") or _verdict_from_record(record)
+    flip_reasons = _listify(flip.get("reason_codes") or flip.get("reason_codes_csv"))
+    upgrade_reasons = _listify(upgrade.get("reason_codes") or upgrade.get("reason_codes_csv"))
+    forecast_failed = _listify(verdict.get("failed_csv"))
+    flip_failed = _listify(flip.get("failed_gates") or flip.get("failed_gates_csv"))
+    market_blockers = [
+        code
+        for code in flip_reasons
+        if code
+        in {
+            "MISSING_BUY_PRICE",
+            "MISSING_SELL_PRICE",
+            "NON_EXECUTABLE_BOOK",
+            "LIQUIDITY_UNAVAILABLE",
+            "LIQUIDITY_BELOW_FLOOR",
+        }
+    ]
+    formula = forecast.get("formula") if isinstance(forecast.get("formula"), dict) else {}
+    formula_inputs = {
+        "sell_price": flip.get("sell_price"),
+        "buy_price": flip.get("buy_price"),
+        "after_tax_sale": flip.get("after_tax_sale"),
+        "profit": flip.get("profit"),
+        "roi": flip.get("roi"),
+        "spread_pct": flip.get("spread_pct"),
+        "liquidity_score": flip.get("liquidity_score"),
+        "forecast_expected_ret": forecast.get("expected_ret"),
+        "forecast_formula": formula.get("return_formula"),
+        "p_cross_next_threshold": upgrade.get("p_cross_next_threshold"),
+        "p_upgrade": upgrade.get("p_upgrade"),
+        "p_downgrade": upgrade.get("p_downgrade"),
+        "next_threshold": upgrade.get("next_threshold"),
+        "new_rank": upgrade.get("new_rank"),
+    }
+
+    action = "HOLD"
+    channel = "forecast"
+    reason_codes: list[str] = []
+    blockers: list[str] = []
+    confidence: Any = None
+    explanation = "No actionable flip or threshold edge was detected."
+
+    if upgrade.get("action") == "SELL":
+        action = "SELL"
+        channel = "upgrade"
+        reason_codes = ["DOWNGRADE_RISK_OVERRIDES_FLIP", *upgrade_reasons]
+        blockers = forecast_failed
+        confidence = upgrade.get("confidence")
+        explanation = "Upgrade downgrade risk is the primary signal; any positive flip edge remains visible in the flip columns."
+    elif flip.get("action") == "BUY":
+        action = "BUY FLIP"
+        channel = "flip"
+        reason_codes = ["EXECUTABLE_FLIP_EDGE", *flip_reasons]
+        blockers = forecast_failed
+        confidence = 100
+        explanation = "Executable bid/ask math clears price, ROI, and liquidity gates; forecast EV is diagnostic only."
+    elif upgrade.get("action") == "BUY SPECULATIVE":
+        if market_blockers:
+            action = "NO TRADE"
+            channel = "data_quality"
+            reason_codes = ["UPGRADE_SIGNAL_BLOCKED_BY_MARKET_DATA", *upgrade_reasons, *flip_reasons]
+            blockers = _unique([*market_blockers, *flip_failed, *forecast_failed])
+            confidence = upgrade.get("confidence")
+            explanation = "Upgrade scenario is positive, but missing or non-executable market data blocks a buy."
+        else:
+            action = "BUY SPECULATIVE"
+            channel = "upgrade"
+            reason_codes = ["SCENARIO_THRESHOLD_EDGE", *upgrade_reasons]
+            blockers = forecast_failed
+            confidence = upgrade.get("confidence")
+            explanation = "Roster-threshold scenario supports a speculative buy; probabilities are scenario-based and uncalibrated."
+    elif upgrade.get("action") == "WATCH":
+        action = "WATCH"
+        channel = "upgrade"
+        reason_codes = ["UPGRADE_WATCH", *upgrade_reasons]
+        blockers = _unique([*market_blockers, *forecast_failed])
+        confidence = upgrade.get("confidence")
+        explanation = "Upgrade scenario is informative but not strong enough for a buy."
+    elif flip.get("action") == "NO TRADE":
+        action = "NO TRADE"
+        channel = "data_quality"
+        reason_codes = ["FLIP_BLOCKED", *flip_reasons]
+        blockers = _unique([*market_blockers, *flip_failed, *forecast_failed])
+        confidence = 0
+        explanation = "Executable flip trade is blocked by market-data, ROI, or liquidity gates."
+    elif verdict_status in {"OBSERVATIONAL ONLY", "NOT INVESTABLE"}:
+        action = "WATCH"
+        channel = "forecast"
+        reason_codes = ["FORECAST_DIAGNOSTIC_ONLY", *forecast_failed]
+        blockers = forecast_failed
+        confidence = 0
+        explanation = "Forecast diagnostics are not decision-grade; monitor only."
+    else:
+        reason_codes = ["NO_ACTIONABLE_EDGE", *flip_reasons, *upgrade_reasons]
+
+    model_statuses = _unique(
+        [
+            str(upgrade.get("model_status") or "uncalibrated_threshold_model"),
+            "forecast_diagnostic_only" if forecast.get("diagnostic_only") else "",
+        ]
+    )
+    reason_codes = _unique(reason_codes) or ["NO_ACTIONABLE_EDGE"]
+    blockers = _unique(blockers)
+    return {
+        "action": action,
+        "responsible_channel": channel,
+        "reason_codes": reason_codes,
+        "reason_codes_csv": _csv(reason_codes),
+        "blockers": blockers,
+        "blockers_csv": _csv(blockers),
+        "formula_inputs": formula_inputs,
+        "confidence": confidence,
+        "model_status": ",".join(model_statuses),
+        "probability_kind": str(upgrade.get("probability_kind") or "scenario"),
+        "explanation": explanation,
+    }
+
+
 def enrich_scan_fields(record: dict[str, Any]) -> dict[str, Any]:
     """Expose Shiny-era scan columns while preserving nested API payloads."""
 
@@ -117,23 +266,38 @@ def enrich_scan_fields(record: dict[str, Any]) -> dict[str, Any]:
     upgrade = record.get("upgrade") or {}
     forecast = record.get("forecast") or {}
     gates = forecast.get("gates") if isinstance(forecast.get("gates"), dict) else {}
+    verdict = forecast.get("verdict") if isinstance(forecast.get("verdict"), dict) else {}
     validation = record.get("validation") if isinstance(record.get("validation"), dict) else {}
     if record.get("status") == "dropped":
         reason = record.get("reason") or "fetch_error"
+        record["decision"] = _decision_for_record(record)
         record.update({
             "name": record.get("name") or "-",
             "scan_status": "INVALID",
             "verdict_status": "NOT INVESTABLE",
+            "rarity": _first(record.get("rarity"), card.get("rarity")),
+            "decision_tier": "UNRATED",
+            "validation_tier": "UNRATED",
             "tier": "UNRATED",
             "flip_reason_codes": str(reason),
             "upgrade_reason_codes": "",
             "gates_failed_csv": str(reason),
             "forecast_direction": "FORECAST UNAVAILABLE",
             "forecast_ev_7d": None,
+            "decision_action": record["decision"]["action"],
+            "responsible_channel": record["decision"]["responsible_channel"],
+            "decision_reason_codes": record["decision"]["reason_codes_csv"],
+            "decision_blockers": record["decision"]["blockers_csv"],
+            "model_status": record["decision"]["model_status"],
+            "probability_kind": record["decision"]["probability_kind"],
         })
         return record
 
+    decision = _decision_for_record(record)
+    decision_tier = forecast.get("tier") or "UNRATED"
+    record["decision"] = decision
     record.update({
+        "rarity": _first(card.get("rarity"), upgrade.get("rarity")),
         "raw_bid": _first(flip.get("buy_price"), card.get("raw_bid"), card.get("bid")),
         "raw_ask": _first(flip.get("sell_price"), card.get("raw_ask"), card.get("ask")),
         "after_tax_sale": flip.get("after_tax_sale"),
@@ -165,13 +329,24 @@ def enrich_scan_fields(record: dict[str, Any]) -> dict[str, Any]:
         "forecast_direction": forecast.get("direction") or forecast.get("status") or "FORECAST UNAVAILABLE",
         "forecast_ev_7d": forecast.get("expected_ret"),
         "forecast_p_up_7d": forecast.get("p_profit"),
+        "forecast_formula": (forecast.get("formula") or {}).get("return_formula")
+        if isinstance(forecast.get("formula"), dict)
+        else None,
         "forecast_score": None,
         "forecast_action": "HOLD",
         "scan_status": _status_from_record(record),
         "verdict_status": _verdict_from_record(record),
-        "tier": forecast.get("tier") or "UNRATED",
-        "gates_failed_csv": gates.get("failed_csv") or "",
+        "decision_tier": decision_tier,
+        "validation_tier": decision_tier,
+        "tier": decision_tier,
+        "gates_failed_csv": verdict.get("failed_csv") or gates.get("failed_csv") or "",
         "validation_mismatch": validation.get("mismatch"),
+        "decision_action": decision["action"],
+        "responsible_channel": decision["responsible_channel"],
+        "decision_reason_codes": decision["reason_codes_csv"],
+        "decision_blockers": decision["blockers_csv"],
+        "model_status": decision["model_status"],
+        "probability_kind": decision["probability_kind"],
     })
     return record
 
@@ -201,18 +376,14 @@ def analyze_listing(
 
 
 def partition_scan(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
-    """Bucket scan records by governance verdict + action.
-
-    Governance contract: a record whose verdict is OBSERVATIONAL ONLY or NOT
-    INVESTABLE NEVER enters ``flip_buys`` or ``upgrade_buys`` regardless of the
-    underlying flip/upgrade action label. This closes the visibility leak that
-    let unvalidated cards rank in TOP BUY / TOP SELL.
-    """
+    """Bucket scan records by final decision action."""
     buckets: dict[str, list[dict[str, Any]]] = {
         "flip_buys": [],
         "upgrade_buys": [],
+        "watch": [],
         "holds": [],
         "sells": [],
+        "no_trade": [],
         "observational": [],
         "dropped": [],
     }
@@ -221,21 +392,19 @@ def partition_scan(records: list[dict[str, Any]]) -> dict[str, list[dict[str, An
         if rec.get("status") == "dropped":
             buckets["dropped"].append(rec)
             continue
-        verdict = _verdict_from_record(rec)
-        if verdict == "NOT INVESTABLE":
-            buckets["dropped"].append(rec)
-            continue
-        if verdict == "OBSERVATIONAL ONLY":
-            buckets["observational"].append(rec)
-            continue
-        flip = rec.get("flip") or {}
-        upgrade = rec.get("upgrade") or {}
-        if flip.get("action") == "BUY":
+        action = (rec.get("decision") or {}).get("action") or rec.get("decision_action")
+        if action == "BUY FLIP":
             buckets["flip_buys"].append(rec)
-        elif upgrade.get("action") == "BUY SPECULATIVE":
+        elif action == "BUY SPECULATIVE":
             buckets["upgrade_buys"].append(rec)
-        elif flip.get("action") == "SELL" or upgrade.get("action") == "SELL":
+        elif action == "SELL":
             buckets["sells"].append(rec)
+        elif action == "WATCH":
+            buckets["watch"].append(rec)
+        elif action == "NO TRADE":
+            buckets["no_trade"].append(rec)
+        elif _verdict_from_record(rec) == "OBSERVATIONAL ONLY":
+            buckets["observational"].append(rec)
         else:
             buckets["holds"].append(rec)
 
@@ -246,6 +415,8 @@ def partition_scan(records: list[dict[str, Any]]) -> dict[str, list[dict[str, An
         key=lambda r: ((r.get("forecast") or {}).get("expected_ret") or 0.0),
         reverse=True,
     )
+    buckets["watch"].sort(key=lambda r: ((r.get("upgrade") or {}).get("upgrade_score") or 0.0), reverse=True)
+    buckets["no_trade"].sort(key=lambda r: str(r.get("decision_blockers") or r.get("flip_reason_codes") or ""))
     return buckets
 
 
@@ -261,11 +432,13 @@ def _dropped_record(uuid: str, reason: str, *, idx: int, total: int, name: str |
 
 
 def _scan_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
-    tiers = Counter(str(row.get("tier") or "UNRATED") for row in records if row.get("status") != "dropped")
+    tiers = Counter(str(row.get("decision_tier") or row.get("tier") or "UNRATED") for row in records if row.get("status") != "dropped")
+    rarities = Counter(str(row.get("rarity") or (row.get("card") or {}).get("rarity") or "UNKNOWN") for row in records if row.get("status") != "dropped")
     spreads = [float(row["spread_pct"]) for row in records if isinstance(row.get("spread_pct"), (int, float))]
     liq = [float(row["liquidity_recent"]) for row in records if isinstance(row.get("liquidity_recent"), (int, float))]
     return {
         "tier_distribution": dict(tiers),
+        "rarity_distribution": dict(rarities),
         "market_health": {
             "median_spread": sorted(spreads)[len(spreads) // 2] if spreads else None,
             "median_liquidity_recent": sorted(liq)[len(liq) // 2] if liq else None,
@@ -309,14 +482,20 @@ def scan_payload(payload: dict[str, Any], progress: ProgressCallback | None = No
                 "status": "unavailable",
                 "diagnostic_only": True,
                 "reason": "listing payload required for price-history diagnostics",
-                "gates": {
-                    "status": "diagnostic_warning",
-                    "failed": ["listing_required"],
-                    "failed_csv": "listing_required",
-                    "note": "Forecast gates do not block executable flip or upgrade signals.",
-                },
-                "tier": "UNRATED",
-            }
+            "gates": {
+                "status": "diagnostic_warning",
+                "failed": ["listing_required"],
+                "failed_csv": "listing_required",
+                "note": "Forecast gates do not block executable flip or upgrade signals.",
+            },
+            "verdict": {
+                "status": "OBSERVATIONAL ONLY",
+                "failed": ["listing_required"],
+                "failed_csv": "listing_required",
+                "reasons": ["listing payload required for forecast diagnostics"],
+            },
+            "tier": "UNRATED",
+        }
             records.append(enrich_scan_fields(scored))
 
     total = len(parsed.uuids)
@@ -393,6 +572,7 @@ def scan_payload(payload: dict[str, Any], progress: ProgressCallback | None = No
         "partitions": parts,
         "counts": {key: len(value) for key, value in parts.items()},
         "tier_distribution": summary["tier_distribution"],
+        "rarity_distribution": summary["rarity_distribution"],
         "market_health": summary["market_health"],
         "dropped_summary": summary["dropped_summary"],
     }

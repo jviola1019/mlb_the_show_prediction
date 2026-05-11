@@ -202,6 +202,9 @@ class UpgradeResult:
     components: dict[str, float]
     upgrade_score: float
     action: str
+    model_status: str
+    probability_kind: str
+    probability_note: str
     reason_codes: list[str]
     reason_codes_csv: str
 
@@ -228,7 +231,13 @@ def score_upgrade(
     dist85 = distance_to_ovr(ovr, 85)
     dist90 = distance_to_ovr(ovr, 90)
 
-    reasons = ["PYTHON_BACKEND", "UNCALIBRATED_THRESHOLD_MODEL"]
+    model_status = "uncalibrated_threshold_model"
+    probability_kind = "scenario"
+    probability_note = (
+        "Scenario probabilities from deterministic thresholds and recent-vs-season features; "
+        "not historically calibrated."
+    )
+    reasons = ["PYTHON_BACKEND", "UNCALIBRATED_THRESHOLD_MODEL", "SCENARIO_PROBABILITY"]
     z, components = ovr_z_score(recent, season, role)
     has_stats = bool(components)
     pt_score, pt_reason = _playing_time_score(recent, season, role)
@@ -254,6 +263,7 @@ def score_upgrade(
 
     nr_up = nr is not None and ovr is not None and nr > ovr
     nr_down = nr is not None and ovr is not None and nr < ovr
+    nr_flat = nr is not None and ovr is not None and nr == ovr
     nr_crosses = nr_up and threshold is not None and ovr < threshold <= nr
     if nr is None:
         reasons.append("NEW_RANK_UNAVAILABLE")
@@ -263,8 +273,13 @@ def score_upgrade(
             reasons.append("NEW_RANK_UP")
         if nr_down:
             reasons.append("NEW_RANK_DOWN")
+            reasons.append("RANK_DOWN_BLOCKS_BUY")
+        if nr_flat:
+            reasons.append("NEW_RANK_FLAT")
         if nr_crosses:
             reasons.append("NEW_RANK_CROSSES_THRESHOLD")
+        elif has_stats:
+            reasons.append("STATS_ONLY_SCENARIO")
 
     if nr_up:
         p_upgrade = max(p_upgrade or 0, 0.70)
@@ -306,11 +321,11 @@ def score_upgrade(
 
     if not has_stats and nr is None:
         action = "AVOID"
+    elif nr_down:
+        action = "SELL"
     elif p_downgrade is not None and p_downgrade >= 0.60 and (p_upgrade is None or p_upgrade < 0.40):
         action = "SELL"
     elif nr_crosses and confidence >= 50:
-        action = "BUY SPECULATIVE"
-    elif p_cross_next is not None and p_cross_next >= 0.55 and confidence >= 65 and distance is not None and distance <= 2:
         action = "BUY SPECULATIVE"
     elif (p_upgrade is not None and p_upgrade >= 0.55) or (p_cross_next is not None and p_cross_next >= 0.25):
         action = "WATCH"
@@ -347,6 +362,9 @@ def score_upgrade(
         components=components,
         upgrade_score=upgrade_score,
         action=action,
+        model_status=model_status,
+        probability_kind=probability_kind,
+        probability_note=probability_note,
         reason_codes=unique_reasons,
         reason_codes_csv=_csv(unique_reasons),
     )

@@ -2,12 +2,10 @@ import { useEffect, useMemo, useRef } from "react";
 import type { ScoreRecord } from "../types";
 
 /**
- * 3D scatter for the OVERALL tab: OVR x tier x expected_return.
+ * 3D scatter for the OVERALL tab: OVR x validation tier x forecast EV.
  *
  * Encodes verdict status as point color so the user can see at a glance which
  * cards passed the 7-gate governance vs which were demoted to OBSERVATIONAL.
- * NOT INVESTABLE records are excluded entirely (they're already in the dropped
- * partition).
  */
 
 const TIER_AXIS: Record<string, number> = { BRONZE: 0, SILVER: 1, GOLD: 2, DIAMOND: 3, UNRATED: -1 };
@@ -31,7 +29,7 @@ export function TierOvrEvScatter3D({
       .filter((r) => r.status !== "dropped")
       .map((r) => {
         const ovr = Number(r.ovr ?? r.upgrade?.current_ovr ?? 0);
-        const tier = String(r.tier ?? r.forecast?.tier ?? "UNRATED");
+        const tier = String(r.validation_tier ?? r.decision_tier ?? r.tier ?? r.forecast?.tier ?? "UNRATED");
         const ev = Number((r.forecast?.expected_ret ?? r.forecast_ev_7d ?? 0) * 100);
         const verdict = String(r.verdict?.status ?? r.verdict_status ?? "OBSERVATIONAL ONLY");
         return {
@@ -62,7 +60,7 @@ export function TierOvrEvScatter3D({
         xAxis3D: { type: "value", name: "OVR", min: 60, max: 99, axisLabel: { color: "#94a3b8" } },
         yAxis3D: {
           type: "category",
-          name: "Tier",
+          name: "Validation Tier",
           data: ["BRONZE", "SILVER", "GOLD", "DIAMOND"],
           axisLabel: { color: "#94a3b8" },
         },

@@ -1,5 +1,7 @@
 import unittest
 import time
+import tempfile
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -14,6 +16,21 @@ class ApiContractTests(unittest.TestCase):
         payload = self.client.get("/api/health").json()
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["quant_owner"], "python")
+
+    def test_static_serving_smoke_contract(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "assets").mkdir()
+            (root / "index.html").write_text('<div id="root"></div><script type="module" src="/assets/app.js"></script>', encoding="utf-8")
+            (root / "assets" / "app.js").write_text("console.log('ok')", encoding="utf-8")
+            client = TestClient(create_app(static_dir=root))
+            self.assertEqual(client.get("/api/health").json()["status"], "ok")
+            html = client.get("/")
+            self.assertEqual(html.status_code, 200)
+            self.assertIn("/assets/app.js", html.text)
+            asset = client.get("/assets/app.js")
+            self.assertEqual(asset.status_code, 200)
+            self.assertIn("console.log", asset.text)
 
     def test_upgrade_score_contract(self):
         res = self.client.post(

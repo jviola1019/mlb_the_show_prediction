@@ -6,7 +6,7 @@ const ScanDepthHeatmap3D = lazy(() => import("../viz/ScanDepthHeatmap3D"));
 import { api } from "../api";
 import type { TerminalContext } from "../appState";
 import { FreshnessBadge, Panel, Pill, RecordsTable, SourceLink, Stat } from "../components";
-import type { ScanJob, ScanResponse, ScoreRecord } from "../types";
+import type { ScanJob, ScoreRecord } from "../types";
 import { parseUuidTokens } from "../uuid";
 
 type ScanMode = "top_live" | "paste_uuids" | "session_history";
@@ -156,7 +156,8 @@ export function ScanTab({ ctx }: { ctx: TerminalContext }) {
               <Stat label="Cards" value={String(data.records.length)} />
               <Stat label="Flip buys" value={String(data.counts.flip_buys ?? 0)} tone={(data.counts.flip_buys ?? 0) ? "good" : "neutral"} />
               <Stat label="Upgrade buys" value={String(data.counts.upgrade_buys ?? 0)} tone={(data.counts.upgrade_buys ?? 0) ? "info" : "neutral"} />
-              <Stat label="Observational" value={String(data.counts.observational ?? 0)} tone={(data.counts.observational ?? 0) ? "warn" : "neutral"} />
+              <Stat label="Watch" value={String(data.counts.watch ?? 0)} tone={(data.counts.watch ?? 0) ? "info" : "neutral"} />
+              <Stat label="No trade" value={String(data.counts.no_trade ?? 0)} tone={(data.counts.no_trade ?? 0) ? "warn" : "neutral"} />
               <Stat label="Holds" value={String(data.counts.holds ?? 0)} />
               <Stat label="Sells" value={String(data.counts.sells ?? 0)} tone={(data.counts.sells ?? 0) ? "bad" : "neutral"} />
               <Stat label="Dropped" value={String(data.counts.dropped ?? 0)} tone={(data.counts.dropped ?? 0) ? "warn" : "neutral"} />
@@ -165,22 +166,33 @@ export function ScanTab({ ctx }: { ctx: TerminalContext }) {
             </div>
             <div className="muted">{data.progress?.rate_limit_message}</div>
           </Panel>
-          <Panel title="Flip Buys" kicker="INVESTABLE · 7 gates passed"><RecordsTable rows={data.partitions.flip_buys} kind="flip" onRowClick={selectRecord} selectedUuid={selectedUuid} /></Panel>
-          <Panel title="Market Depth · 3D" kicker="OVR × liquidity × ROI, color = tier">
-            <Suspense fallback={<div className="empty">loading 3D heatmap…</div>}>
+          <Panel title="Flip Buys" kicker="executable bid/ask math">
+            <RecordsTable rows={data.partitions.flip_buys} kind="flip" onRowClick={selectRecord} selectedUuid={selectedUuid} />
+          </Panel>
+          <Panel title="Market Depth 3D" kicker="OVR x liquidity x flip ROI, color = validation tier">
+            <Suspense fallback={<div className="empty">loading 3D heatmap...</div>}>
               <ScanDepthHeatmap3D records={data.records} />
             </Suspense>
           </Panel>
-          <Panel title="Upgrade Buys" kicker="INVESTABLE · threshold probability surface"><RecordsTable rows={data.partitions.upgrade_buys} kind="upgrade" onRowClick={selectRecord} selectedUuid={selectedUuid} /></Panel>
-          <Panel title="Observational" kicker="direction only · no action verb">
-            <p className="muted">
-              These cards have valid history but one or more soft gates failed (negative-skill CV,
-              wide CIs, or missing calibration). They are excluded from TOP BUY / TOP SELL ranking.
-            </p>
+          <Panel title="Upgrade Buys" kicker="scenario threshold edge, uncalibrated unless backtested">
+            <RecordsTable rows={data.partitions.upgrade_buys} kind="upgrade" onRowClick={selectRecord} selectedUuid={selectedUuid} />
+          </Panel>
+          <Panel title="Watch" kicker="informational or uncalibrated signals">
+            <p className="muted">Watch rows keep flip ROI, forecast EV, and scenario probabilities separate. They are not buy signals.</p>
+            <RecordsTable rows={data.partitions.watch ?? []} kind="watch" onRowClick={selectRecord} selectedUuid={selectedUuid} />
+          </Panel>
+          <Panel title="Holds">
+            <RecordsTable rows={data.partitions.holds} kind="holds" onRowClick={selectRecord} selectedUuid={selectedUuid} />
+          </Panel>
+          <Panel title="Sells">
+            <RecordsTable rows={data.partitions.sells} kind="sells" onRowClick={selectRecord} selectedUuid={selectedUuid} />
+          </Panel>
+          <Panel title="No Trade" kicker="blocked by executable book, ROI, liquidity, or data gates">
+            <RecordsTable rows={data.partitions.no_trade ?? []} kind="no_trade" onRowClick={selectRecord} selectedUuid={selectedUuid} />
+          </Panel>
+          <Panel title="Observational Legacy" kicker="compatibility bucket">
             <RecordsTable rows={data.partitions.observational ?? []} kind="observational" onRowClick={selectRecord} selectedUuid={selectedUuid} />
           </Panel>
-          <Panel title="Holds"><RecordsTable rows={data.partitions.holds} kind="holds" onRowClick={selectRecord} selectedUuid={selectedUuid} /></Panel>
-          <Panel title="Sells"><RecordsTable rows={data.partitions.sells} kind="sells" onRowClick={selectRecord} selectedUuid={selectedUuid} /></Panel>
           <Panel title="Dropped / Invalid" kicker={`${Object.values(data.dropped_summary ?? {}).reduce((a, b) => a + b, 0)} grouped`}>
             <DroppedSummary summary={data.dropped_summary} />
             <RecordsTable rows={data.partitions.dropped} kind="dropped" />
