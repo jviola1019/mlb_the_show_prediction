@@ -15,7 +15,7 @@ import {
   SignalPill,
   Stat,
 } from "../components";
-import { VerdictBanner, blankIf, isInvestable, verdictOf } from "../verdictGuard";
+import { VerdictBanner, isInvestable, verdictOf } from "../verdictGuard";
 
 const TierOvrEvScatter3D = lazy(() => import("../viz/TierOvrEvScatter3D"));
 
@@ -59,8 +59,8 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
               tone={overallTone}
             />
             <Stat
-              label="Tier"
-              value={String(record.tier ?? record.forecast?.tier ?? "-")}
+              label="Validation Tier"
+              value={String(record.validation_tier ?? record.decision_tier ?? record.tier ?? record.forecast?.tier ?? "-")}
             />
             <Stat
               label="Current OVR"
@@ -72,11 +72,11 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
             />
             <Stat
               label="Flip signal"
-              value={<SignalPill action={isInvestable(record) ? record.flip?.action : "OBSERVE"} />}
+              value={<SignalPill action={record.decision_action ?? record.decision?.action ?? (isInvestable(record) ? record.flip?.action : "WATCH")} />}
             />
             <Stat
               label="Upgrade signal"
-              value={<SignalPill action={isInvestable(record) ? record.upgrade?.action : "OBSERVE"} />}
+              value={<SignalPill action={record.upgrade?.action} />}
             />
             <Stat
               label="Raw ask"
@@ -88,17 +88,17 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
             />
             <Stat
               label="After-tax profit"
-              value={blankIf(record, fmtStubs(record.flip?.profit))}
+              value={fmtStubs(record.flip?.profit)}
               tone={isInvestable(record) && (record.flip?.profit ?? 0) > 0 ? "good" : "neutral"}
             />
-            <Stat label="ROI" value={blankIf(record, fmtPct(record.flip?.roi, 2))} />
+            <Stat label="Flip ROI" value={fmtPct(record.flip?.roi, 2)} />
             <Stat
-              label="P(Cross 85)"
-              value={blankIf(record, fmtPct(record.upgrade?.p_cross_85, 1))}
+              label="Scenario P(Cross 85)"
+              value={fmtPct(record.upgrade?.p_cross_85, 1)}
             />
             <Stat
-              label="Forecast E[ret]"
-              value={blankIf(record, fmtPct(record.forecast?.expected_ret, 2))}
+              label="Forecast EV"
+              value={fmtPct(record.forecast?.expected_ret, 2)}
             />
             <Stat
               label="Direction"
@@ -130,7 +130,7 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
       ) : (
         <Panel title="Current Card" kicker="not loaded">
           <p className="muted">
-            Search a player on the CARD tab and click Load. Their verdict, tier, OVR, forecast,
+            Search a player on the CARD tab and click Load. Their verdict, validation tier, OVR, forecast,
             and flip economics will populate here automatically.
           </p>
         </Panel>
@@ -154,6 +154,8 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
           <Stat label="Cards scanned" value={String(ctx.lastScan?.records.length ?? 0)} />
           <Stat label="Flip buys" value={String(counts?.flip_buys ?? 0)} tone={(counts?.flip_buys ?? 0) > 0 ? "good" : "neutral"} />
           <Stat label="Upgrade buys" value={String(counts?.upgrade_buys ?? 0)} tone={(counts?.upgrade_buys ?? 0) > 0 ? "info" : "neutral"} />
+          <Stat label="Watch" value={String(counts?.watch ?? 0)} tone={(counts?.watch ?? 0) > 0 ? "info" : "neutral"} />
+          <Stat label="No trade" value={String(counts?.no_trade ?? 0)} tone={(counts?.no_trade ?? 0) > 0 ? "warn" : "neutral"} />
           <Stat label="Holds" value={String(counts?.holds ?? 0)} />
           <Stat label="Sells" value={String(counts?.sells ?? 0)} tone={(counts?.sells ?? 0) > 0 ? "bad" : "neutral"} />
           <Stat label="Dropped" value={String(counts?.dropped ?? 0)} tone={(counts?.dropped ?? 0) > 0 ? "warn" : "neutral"} />
@@ -182,7 +184,8 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
         <div className="reason-list">
           {Object.entries(ctx.lastScan?.tier_distribution ?? {}).length
             ? Object.entries(ctx.lastScan?.tier_distribution ?? {}).map(([tier, count]) => <Pill key={tier}>{tier}: {count}</Pill>)
-            : <span className="empty">No tier distribution until a scan runs.</span>}
+            : <span className="empty">No validation tier distribution until a scan runs.</span>}
+          {Object.entries(ctx.lastScan?.rarity_distribution ?? {}).map(([rarity, count]) => <Pill key={rarity} tone="info">{rarity}: {count}</Pill>)}
         </div>
       </Panel>
 

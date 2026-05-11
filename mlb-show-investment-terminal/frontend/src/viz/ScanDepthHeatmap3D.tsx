@@ -5,9 +5,8 @@ import type { ScoreRecord } from "../types";
  * Order-book-style 3D depth heatmap for the MARKET SCAN tab.
  *
  * Inspired by bookmap / lob-regime-scanner: a 3D bar field of ROI x liquidity
- * across the scanned universe, colored by tier. Rows with verdict OBSERVATIONAL
- * or NOT INVESTABLE are excluded from the bar field (they have their own
- * panel) so the heatmap renders only governed cards.
+ * across the scanned universe, colored by validation tier. The heatmap renders
+ * final BUY decisions so forecast gates do not hide executable flip ROI.
  *
  * Uses echarts-gl via dynamic import so a fresh MARKET SCAN page that has no
  * data yet doesn't ship 420 KB of GL bundle to the user.
@@ -47,14 +46,14 @@ export function ScanDepthHeatmap3D({
   const data = useMemo(() => {
     return records
       .filter((r) => {
-        const v = r.verdict?.status ?? r.verdict_status;
-        return v === "INVESTABLE" || (!v && r.flip_action === "BUY");
+        const action = r.decision?.action ?? r.decision_action;
+        return action === "BUY FLIP" || action === "BUY SPECULATIVE";
       })
       .map((r) => {
         const ovr = Number(r.ovr ?? r.upgrade?.current_ovr ?? 0);
         const liq = Number(r.liquidity_recent ?? r.flip?.liquidity_recent ?? 0);
         const roi = Number((r.flip_roi ?? r.flip?.roi ?? 0) * 100);
-        const tier = String(r.tier ?? r.forecast?.tier ?? "BRONZE");
+        const tier = String(r.validation_tier ?? r.decision_tier ?? r.tier ?? r.forecast?.tier ?? "UNRATED");
         return {
           value: [ovr, liq, roi, tier],
           itemStyle: { color: TIER_COLOR[tier] ?? "#94a3b8" },

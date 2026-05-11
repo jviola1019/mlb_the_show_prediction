@@ -12,8 +12,8 @@ import type { CalibrationBin } from "../types";
 const ReliabilityRibbon3D = lazy(() => import("../viz/ReliabilityRibbon3D"));
 
 export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
-  const [predictions, setPredictions] = useState('[{"uuid":"a","p_cross_next_threshold":0.9}]');
-  const [labels, setLabels] = useState('[{"uuid":"a","crossed_next_threshold":true}]');
+  const [predictions, setPredictions] = useState("[]");
+  const [labels, setLabels] = useState("[]");
   const currentAsk = ctx.currentRecord?.raw_ask ?? ctx.currentRecord?.flip?.sell_price ?? "";
   const currentBid = ctx.currentRecord?.raw_bid ?? ctx.currentRecord?.flip?.buy_price ?? "";
   const [ask, setAsk] = useState(String(currentAsk));
@@ -45,6 +45,26 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
   const data = backtest.data;
   const curve = (data?.calibration_curve as Array<Record<string, number>> | undefined) ?? [];
   const currentVerdict = ctx.currentRecord ? verdictOf(ctx.currentRecord) : null;
+  const scanSummary = {
+    cards: ctx.lastScan?.records.length ?? 0,
+    flip_buys: ctx.lastScan?.counts.flip_buys ?? 0,
+    upgrade_buys: ctx.lastScan?.counts.upgrade_buys ?? 0,
+    watch: ctx.lastScan?.counts.watch ?? 0,
+    no_trade: ctx.lastScan?.counts.no_trade ?? 0,
+    sells: ctx.lastScan?.counts.sells ?? 0,
+    dropped: ctx.lastScan?.counts.dropped ?? 0,
+    positive_flip_roi: ctx.lastScan?.market_health?.cards_with_positive_flip_roi ?? 0,
+    forecast_warnings: ctx.lastScan?.market_health?.cards_with_forecast_warnings ?? 0,
+  };
+  function useLastScanPredictions() {
+    const rows = (ctx.lastScan?.records ?? [])
+      .filter((row) => row.uuid && row.upgrade?.p_cross_next_threshold != null)
+      .map((row) => ({
+        uuid: row.uuid,
+        p_cross_next_threshold: row.upgrade?.p_cross_next_threshold,
+      }));
+    setPredictions(JSON.stringify(rows, null, 2));
+  }
   return (
     <div className="grid">
       {ctx.currentRecord ? (
@@ -77,11 +97,26 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
           </div>
         ) : null}
       </Panel>
+      <Panel title="Scan Universe Validation Summary" kicker="last real scan only">
+        <div className="stat-grid">
+          <Stat label="Cards" value={String(scanSummary.cards)} />
+          <Stat label="Flip buys" value={String(scanSummary.flip_buys)} tone={scanSummary.flip_buys ? "good" : "neutral"} />
+          <Stat label="Upgrade buys" value={String(scanSummary.upgrade_buys)} tone={scanSummary.upgrade_buys ? "info" : "neutral"} />
+          <Stat label="Watch" value={String(scanSummary.watch)} />
+          <Stat label="No trade" value={String(scanSummary.no_trade)} tone={scanSummary.no_trade ? "warn" : "neutral"} />
+          <Stat label="Sells" value={String(scanSummary.sells)} tone={scanSummary.sells ? "bad" : "neutral"} />
+          <Stat label="Positive flip ROI" value={String(scanSummary.positive_flip_roi)} />
+          <Stat label="Forecast warnings" value={String(scanSummary.forecast_warnings)} />
+        </div>
+        <pre>{JSON.stringify(scanSummary, null, 2)}</pre>
+      </Panel>
       <Panel title="Upgrade Backtest" kicker="real labels required">
+        <p className="muted">Predictions can come from the last scan; labels must be real historical roster-update outcomes.</p>
         <div className="split">
           <label>prediction rows<textarea value={predictions} onChange={(e) => setPredictions(e.target.value)} rows={7} /></label>
           <label>label rows<textarea value={labels} onChange={(e) => setLabels(e.target.value)} rows={7} /></label>
         </div>
+        <button onClick={useLastScanPredictions} disabled={!ctx.lastScan?.records.length}><CheckCircle2 size={15} /> Use last scan predictions</button>
         <button onClick={() => backtest.mutate()} disabled={backtest.isPending}><CheckCircle2 size={15} /> Run backtest</button>
         {backtest.error ? <div className="error">{backtest.error.message}</div> : null}
         {data ? (

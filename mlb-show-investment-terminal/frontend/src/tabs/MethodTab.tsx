@@ -10,16 +10,37 @@ export function MethodTab() {
         <p>React renders the terminal. FastAPI serves `/api` and the static React build from the same origin. Python owns every quant decision and reproducible CLI command.</p>
       </Panel>
       <Panel title="Engine Contracts">
-        <pre>{`flip.after_tax_sale = ask * 0.90
-flip.profit = after_tax_sale - bid
-flip.roi = profit / bid
+        <pre>{`flip.after_tax_sale = sell_price * 0.90
+flip.profit = after_tax_sale - buy_price
+flip.roi = profit / buy_price
+flip.spread_pct = (sell_price - buy_price) / sell_price
 
-upgrade = threshold-crossing probability
+upgrade = scenario threshold model until real historical backtests calibrate it
 forecast = diagnostic-only price-history bootstrap
-cv/ic gates = forecast diagnostics only`}</pre>
+forecast_ev = ((terminal_price * spread_ratio * (1 - tax_rate)) - current_price) / current_price
+
+final decision = explicit policy over separate flip, upgrade, forecast, and data-quality channels`}</pre>
+      </Panel>
+      <Panel title="Decision Policy">
+        <ul className="rule-list">
+          <li>BUY FLIP requires executable bid/ask math after tax, positive ROI, and sufficient liquidity.</li>
+          <li>BUY SPECULATIVE requires a threshold-crossing roster scenario and executable market data.</li>
+          <li>WATCH keeps informational signals visible without issuing a buy.</li>
+          <li>NO TRADE shows the exact blocker: missing price, non-executable book, low liquidity, or failed data gate.</li>
+          <li>SELL can override a positive flip edge only when downgrade risk is explicit.</li>
+        </ul>
       </Panel>
       <Panel title="Deployment">
         <p>Render and Hugging Face use one Docker image. Runtime storage is ephemeral; historical labels are committed artifacts, not written by the hosted app.</p>
+      </Panel>
+      <Panel title="Known Limitations">
+        <ul className="rule-list">
+          <li>The Show API rate limits and missing bid/ask data can block executable trades.</li>
+          <li>Short, stale, or illiquid price histories make forecast diagnostics observational.</li>
+          <li>SDS roster updates are discretionary; scenario probabilities are not guaranteed outcomes.</li>
+          <li>Upgrade probabilities are uncalibrated unless real historical roster-update labels are supplied.</li>
+          <li>No output guarantees profit.</li>
+        </ul>
       </Panel>
       <Panel title="Parity Audit" kicker={parity.data?.generated_at ?? "checking"}>
         <div className="status-line">

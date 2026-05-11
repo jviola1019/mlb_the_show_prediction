@@ -66,6 +66,55 @@ class UpgradeThresholdTests(unittest.TestCase):
         self.assertEqual(gold.distance_to_threshold, 5)
         self.assertEqual(gold.distance_to_85, 5)
 
+    def test_gold_80_84_targets_diamond_threshold(self):
+        for ovr in range(80, 85):
+            result = score_upgrade(
+                recent=RECENT,
+                season=SEASON,
+                role="hitter",
+                current_ovr=ovr,
+                rarity="Gold",
+            )
+            self.assertEqual(result.rarity, "Gold")
+            self.assertEqual(result.next_threshold, 85)
+
+    def test_new_rank_down_never_buys(self):
+        result = score_upgrade(
+            recent={"ops": 1.200, "avg": 0.390, "plateAppearances": 60},
+            season={"ops": 0.700, "avg": 0.240, "plateAppearances": 180},
+            role="hitter",
+            current_ovr=83,
+            rarity="Gold",
+            new_rank=82,
+        )
+        self.assertEqual(result.action, "SELL")
+        self.assertIn("RANK_DOWN_BLOCKS_BUY", result.reason_codes)
+
+    def test_new_rank_flat_stats_only_is_capped_at_watch(self):
+        result = score_upgrade(
+            recent={"era": 0.20, "whip": 0.50, "inningsPitched": 12},
+            season={"era": 4.20, "whip": 1.30, "inningsPitched": 80},
+            role="pitcher",
+            current_ovr=83,
+            rarity="Gold",
+            new_rank=83,
+        )
+        self.assertEqual(result.action, "WATCH")
+        self.assertIn("NEW_RANK_FLAT", result.reason_codes)
+        self.assertIn("STATS_ONLY_SCENARIO", result.reason_codes)
+
+    def test_probabilities_are_labeled_scenario_uncalibrated(self):
+        result = score_upgrade(
+            recent=RECENT,
+            season=SEASON,
+            role="hitter",
+            current_ovr=84,
+            rarity="Gold",
+        )
+        self.assertEqual(result.probability_kind, "scenario")
+        self.assertEqual(result.model_status, "uncalibrated_threshold_model")
+        self.assertIn("UNCALIBRATED_THRESHOLD_MODEL", result.reason_codes)
+
 
 if __name__ == "__main__":
     unittest.main()

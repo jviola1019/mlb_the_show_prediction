@@ -35,7 +35,6 @@ import { useState } from "react";
 import {
   GuardedVisual,
   VerdictBanner,
-  blankIf,
   isInvestable,
   verdictOf,
 } from "../verdictGuard";
@@ -128,15 +127,13 @@ export function CardTab({ ctx }: { ctx: TerminalContext }) {
 function TargetPanel({ record }: { record: ScoreRecord }) {
   const card = record.card ?? {};
   const investable = isInvestable(record);
-  // Under non-INVESTABLE verdicts, blank executable/Kelly-shaped fields so the
-  // UI never implies a tradeable signal under failed governance. The raw
-  // bid/ask/spread stay visible (they're factual, not predictive).
-  const profit = blankIf(record, fmtStubs(record.flip?.profit));
-  const roi = blankIf(record, fmtPct(record.flip?.roi, 2));
-  const afterTax = blankIf(record, fmtStubs(record.flip?.after_tax_sale));
-  const pCross = blankIf(record, fmtPct(record.upgrade?.p_cross_next_threshold, 1));
-  const pUp = blankIf(record, fmtPct(record.upgrade?.p_upgrade, 1));
-  const pDown = blankIf(record, fmtPct(record.upgrade?.p_downgrade, 1));
+  const decision = record.decision_action ?? record.decision?.action ?? (investable ? record.flip?.action : "WATCH");
+  const profit = fmtStubs(record.flip?.profit);
+  const roi = fmtPct(record.flip?.roi, 2);
+  const afterTax = fmtStubs(record.flip?.after_tax_sale);
+  const pCross = fmtPct(record.upgrade?.p_cross_next_threshold, 1);
+  const pUp = fmtPct(record.upgrade?.p_upgrade, 1);
+  const pDown = fmtPct(record.upgrade?.p_downgrade, 1);
   return (
     <Panel title="Target" kicker={<FreshnessBadge at={record.fetched_at} label="LISTING" />} className="target-panel">
       <CardIdentity record={record} />
@@ -144,7 +141,7 @@ function TargetPanel({ record }: { record: ScoreRecord }) {
       <div className="target-signal-row">
         <div>
           <div className="stat-label">Flip signal</div>
-          <SignalPill action={investable ? record.flip?.action : "OBSERVE"} />
+          <SignalPill action={decision} />
         </div>
         <div>
           <div className="stat-label">Upgrade signal</div>
@@ -161,10 +158,17 @@ function TargetPanel({ record }: { record: ScoreRecord }) {
         <Stat label="Raw bid" value={fmtStubs(record.flip?.buy_price ?? card.raw_bid)} />
         <Stat label="After tax" value={afterTax} />
         <Stat label="Profit" value={profit} tone={investable && (record.flip?.profit ?? 0) > 0 ? "good" : investable ? "bad" : "neutral"} />
-        <Stat label="ROI" value={roi} />
-        <Stat label="P(Cross)" value={pCross} />
-        <Stat label="P(Up)" value={pUp} />
-        <Stat label="P(Down)" value={pDown} />
+        <Stat label="Flip ROI" value={roi} />
+        <Stat label="Scenario P(Cross)" value={pCross} />
+        <Stat label="Scenario P(Up)" value={pUp} />
+        <Stat label="Scenario P(Down)" value={pDown} />
+      </div>
+      <div className="reason-block single">
+        <div>
+          <div className="stat-label">Decision explanation</div>
+          <p className="muted">{record.decision?.explanation ?? "-"}</p>
+          <ReasonCodes codes={record.decision?.reason_codes ?? record.decision_reason_codes} />
+        </div>
       </div>
       <div className="reason-block">
         <div>
@@ -220,10 +224,10 @@ function DiagnosticsPanel({ record }: { record: ScoreRecord }) {
     <Panel title="Forecast Diagnostics" kicker={`verdict: ${status}`}>
       <div className="stat-grid">
         <Stat label="Direction" value={record.forecast?.direction ?? record.forecast?.status ?? "-"} />
-        <Stat label="E[ret]" value={blankIf(record, fmtPct(record.forecast?.expected_ret, 2))} />
-        <Stat label="P(profit)" value={blankIf(record, fmtPct(record.forecast?.p_profit, 1))} />
+        <Stat label="Forecast EV" value={fmtPct(record.forecast?.expected_ret, 2)} />
+        <Stat label="Forecast P(profit)" value={fmtPct(record.forecast?.p_profit, 1)} />
         <Stat label="N prices" value={fmtNum(record.forecast?.n_prices, 0)} />
-        <Stat label="Tier" value={record.forecast?.tier ?? record.tier ?? "-"} />
+        <Stat label="Validation Tier" value={record.validation_tier ?? record.decision_tier ?? record.forecast?.tier ?? record.tier ?? "-"} />
         <Stat label="Verdict" value={status} tone={status === "INVESTABLE" ? "good" : status === "OBSERVATIONAL ONLY" ? "warn" : "bad"} />
         <Stat label="Gates" value={failedGates.length ? `${failedGates.length} failed` : "all pass"} tone={failedGates.length ? "warn" : "good"} />
         <Stat label="Diagnostic" value={record.forecast?.diagnostic_only ? "yes" : "no"} />
@@ -308,6 +312,10 @@ function DiagnosticsPanel({ record }: { record: ScoreRecord }) {
         </div>
       </GuardedVisual>
       <div className="split">
+        <div>
+          <div className="stat-label">Forecast formula</div>
+          <MiniTable rows={[record.forecast?.formula ?? {}]} columns={["price_basis", "current_price", "ask", "bid", "spread_ratio", "tax_rate", "return_formula"]} percentCols={["spread_ratio", "tax_rate"]} />
+        </div>
         <div>
           <div className="stat-label">Quant diagnostics</div>
           <MiniTable rows={[record.forecast?.diagnostics ?? {}]} columns={["z30", "drift_per_day", "drift_p_value", "hurst", "annualized_vol", "spread_pct"]} percentCols={["drift_per_day", "annualized_vol", "spread_pct"]} />

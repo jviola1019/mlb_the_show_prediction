@@ -267,15 +267,52 @@ label { display: grid; gap: 0.25rem; color: var(--muted); font-size: 0.75rem; te
   text-decoration: none;
 }
 .source-link:hover { text-decoration: underline; }
-.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; max-height: min(70vh, 760px); }
 table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
 th, td { padding: 0.42rem 0.5rem; border-bottom: 1px solid #202631; text-align: left; white-space: nowrap; vertical-align: middle; }
-th { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; }
+th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(8, 13, 15, 0.98);
+}
+tbody tr:nth-child(4n + 1) { background: rgba(255,255,255,0.015); }
+td:not(:first-child), th:not(:first-child) { text-align: right; }
+td:has(.card-identity), th:first-child { text-align: left; }
 .mini-table { margin-top: 0.45rem; }
 .mini-table table { font-size: 0.72rem; }
 .clickable-row { cursor: pointer; }
 .clickable-row:hover { background: rgba(56,189,248,.06); }
 .selected-row { background: rgba(16,185,129,.10); outline: 1px solid rgba(16,185,129,.35); }
+.details-row td {
+  padding: 0;
+  text-align: left;
+  background: rgba(0,0,0,.22);
+}
+.decision-details {
+  padding: 0.45rem 0.55rem;
+  color: var(--muted);
+}
+.decision-details summary {
+  cursor: pointer;
+  color: #cbd5e1;
+  font-size: 0.72rem;
+}
+.decision-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.55rem;
+}
+.decision-detail-grid code {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .chart { height: 180px; margin-top: 0.8rem; }
 .chart.tall { height: 210px; }
 .rule-list { margin: 0; padding-left: 1.2rem; color: #cbd5e1; line-height: 1.65; }
@@ -529,6 +566,7 @@ code {
   .form-row, .form-row.three, .split, .reason-block { grid-template-columns: 1fr; }
   .lookup-strip { grid-template-columns: 1fr; }
   .control-grid, .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .decision-detail-grid { grid-template-columns: 1fr; }
   .search-row { grid-template-columns: minmax(140px, 1fr) auto auto; }
   .search-row span:nth-of-type(4),
   .search-row span:nth-of-type(5),

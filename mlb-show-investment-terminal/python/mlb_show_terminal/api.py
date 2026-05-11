@@ -18,7 +18,7 @@ from .audit import audit_parity
 from .historical import evaluate_backtest
 from .market import validate_flip_formula
 from .mlb_stats import MLBStatsError, recent_vs_season
-from .scan import analyze_listing, scan_payload
+from .scan import analyze_listing, enrich_scan_fields, scan_payload
 from .scan_jobs import get_scan_job, start_scan_job
 from .theshow import TheShowError, discover_top_listings, get_listing, search_card
 from .upgrade import score_upgrade
@@ -170,16 +170,23 @@ def create_app(static_dir: str | Path | None = None) -> FastAPI:
                 "status": "unavailable",
                 "diagnostic_only": True,
                 "reason": "listing payload required for price-history diagnostics",
+                "gates": {
+                    "status": "diagnostic_warning",
+                    "failed": ["listing_required"],
+                    "failed_csv": "listing_required",
+                    "note": "Forecast gates do not block executable flip or upgrade signals.",
+                },
+                "tier": "UNRATED",
+                "verdict": {
+                    "status": "OBSERVATIONAL ONLY",
+                    "headline": "OBSERVATIONAL ONLY - no listing payload, governance skipped",
+                    "failed": ["history_sufficient", "data_fresh", "cv_available"],
+                    "failed_csv": "history_sufficient,data_fresh,cv_available",
+                    "reasons": ["row-only entry; listing required for forecast governance"],
+                    "badge_tone": "warn",
+                },
             }
-            scored["verdict"] = {
-                "status": "OBSERVATIONAL ONLY",
-                "headline": "OBSERVATIONAL ONLY - no listing payload, governance skipped",
-                "failed": ["history_sufficient", "data_fresh", "cv_available"],
-                "failed_csv": "history_sufficient,data_fresh,cv_available",
-                "reasons": ["row-only entry; listing required for forecast governance"],
-                "badge_tone": "warn",
-            }
-            return scored
+            return enrich_scan_fields(scored)
         raise HTTPException(status_code=400, detail="listing or row is required")
 
     @app.post("/api/card/validate")

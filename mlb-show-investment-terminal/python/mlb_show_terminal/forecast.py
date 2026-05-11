@@ -285,6 +285,32 @@ def quant_diagnostics(prices: list[float], *, ask: float | None, bid: float | No
     }
 
 
+def forecast_formula_payload(
+    *,
+    current: float | None,
+    ask: float | None,
+    bid: float | None,
+    spread_ratio: float | None,
+    tax_rate: float,
+) -> dict[str, Any]:
+    if current is not None and ask is not None and ask > 0 and current == ask:
+        basis = "ask"
+    elif current is not None:
+        basis = "last_completed_order"
+    else:
+        basis = "unavailable"
+    return {
+        "price_basis": basis,
+        "current_price": current,
+        "ask": ask,
+        "bid": bid,
+        "spread_ratio": spread_ratio,
+        "tax_rate": tax_rate,
+        "return_formula": "((terminal_price * spread_ratio * (1 - tax_rate)) - current_price) / current_price",
+        "note": "Forecast EV is diagnostic price-history math, not executable flip ROI.",
+    }
+
+
 def walk_forward_cv(prices: list[float], *, lookback: int = 20, boot_b: int = 300, seed: int = 1702) -> dict[str, Any]:
     rets = log_returns(prices)
     if len(rets) < lookback + 8:
@@ -453,6 +479,7 @@ def forecast_diagnostics(
     ask = _num(listing.get("best_sell_price"))
     bid = _num(listing.get("best_buy_price"))
     current = ask or (prices[-1] if prices else None)
+    spread_ratio = (bid / ask) if ask and bid and ask > 0 and bid > 0 else 0.9
     rets = log_returns(prices)
     history_records = price_history_records(listing)
 
@@ -472,6 +499,13 @@ def forecast_diagnostics(
             "n_prices": len(prices),
             "horizon": horizon,
             "tax_rate": tax_rate,
+            "formula": forecast_formula_payload(
+                current=current,
+                ask=ask,
+                bid=bid,
+                spread_ratio=spread_ratio,
+                tax_rate=tax_rate,
+            ),
             "price_history": price_history_summary(prices),
             "cone": [],
             "horizons": [],
@@ -489,7 +523,6 @@ def forecast_diagnostics(
         }
 
     block_len = max(3, int(len(rets) ** 0.4))
-    spread_ratio = (bid / ask) if ask and bid and ask > 0 and bid > 0 else 0.9
     paths = _simulate_paths(current, rets, horizon=horizon, n_sims=n_sims, seed=seed)
     returns = _path_returns(paths, current=current, spread_ratio=spread_ratio, tax_rate=tax_rate)
     expected_ret = mean(returns)
@@ -531,6 +564,13 @@ def forecast_diagnostics(
         "n_prices": len(prices),
         "block_length": block_len,
         "tax_rate": tax_rate,
+        "formula": forecast_formula_payload(
+            current=current,
+            ask=ask,
+            bid=bid,
+            spread_ratio=spread_ratio,
+            tax_rate=tax_rate,
+        ),
         "expected_ret": expected_ret,
         "p_profit": p_profit,
         "p5_ret": _quantile(returns, 0.05),
