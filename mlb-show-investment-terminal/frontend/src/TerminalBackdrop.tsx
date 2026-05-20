@@ -11,9 +11,9 @@ export default function TerminalBackdrop() {
     const renderer = new THREE.WebGLRenderer({
       canvas,
       alpha: true,
-      antialias: true,
+      antialias: false,
       preserveDrawingBuffer: true,
-      powerPreference: "high-performance"
+      powerPreference: "low-power"
     });
     renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -31,10 +31,11 @@ export default function TerminalBackdrop() {
 
     const pointCount = 420;
     const positions = new Float32Array(pointCount * 3);
+    const rand = seededRandom(1701);
     for (let i = 0; i < pointCount; i += 1) {
       const ix = i * 3;
-      const x = (Math.random() - 0.5) * 28;
-      const z = (Math.random() - 0.5) * 24;
+      const x = (rand() - 0.5) * 28;
+      const z = (rand() - 0.5) * 24;
       positions[ix] = x;
       positions[ix + 1] = Math.sin(x * 0.35) * 0.18 + Math.cos(z * 0.2) * 0.16 - 0.65;
       positions[ix + 2] = z;
@@ -104,4 +105,12 @@ export default function TerminalBackdrop() {
   }, []);
 
   return <canvas ref={canvasRef} className="terminal-3d-canvas" aria-hidden="true" data-testid="terminal-3d-canvas" />;
+}
+
+function seededRandom(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state = (1664525 * state + 1013904223) >>> 0;
+    return state / 0xffffffff;
+  };
 }

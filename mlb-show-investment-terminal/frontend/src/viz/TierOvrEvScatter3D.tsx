@@ -4,8 +4,9 @@ import type { ScoreRecord } from "../types";
 /**
  * 3D scatter for the OVERALL tab: OVR x validation tier x forecast EV.
  *
- * Encodes verdict status as point color so the user can see at a glance which
- * cards passed the 7-gate governance vs which were demoted to OBSERVATIONAL.
+ * Only INVESTABLE records get an EV coordinate. OBSERVATIONAL / NOT INVESTABLE
+ * records intentionally drop out so the universe plot cannot publish blocked
+ * EV values through a visual channel.
  */
 
 const TIER_AXIS: Record<string, number> = { BRONZE: 0, SILVER: 1, GOLD: 2, DIAMOND: 3, UNRATED: -1 };
@@ -30,8 +31,9 @@ export function TierOvrEvScatter3D({
       .map((r) => {
         const ovr = Number(r.ovr ?? r.upgrade?.current_ovr ?? 0);
         const tier = String(r.validation_tier ?? r.decision_tier ?? r.tier ?? r.forecast?.tier ?? "UNRATED");
-        const ev = Number((r.forecast?.expected_ret ?? r.forecast_ev_7d ?? 0) * 100);
         const verdict = String(r.verdict?.status ?? r.verdict_status ?? "OBSERVATIONAL ONLY");
+        const evSource = verdict === "INVESTABLE" ? r.forecast?.expected_ret ?? r.forecast_ev_7d : null;
+        const ev = Number(evSource == null ? NaN : evSource * 100);
         return {
           name: r.name ?? r.uuid ?? "card",
           value: [ovr, TIER_AXIS[tier] ?? -1, ev, verdict, tier],
@@ -55,7 +57,7 @@ export function TierOvrEvScatter3D({
         backgroundColor: "transparent",
         tooltip: {
           formatter: (p: { name: string; value: [number, number, number, string, string] }) =>
-            `${p.name}<br/>OVR ${p.value[0]} · ${p.value[4]} · EV ${p.value[2].toFixed(2)}%<br/>${p.value[3]}`,
+            `${p.name}<br/>OVR ${p.value[0]} - ${p.value[4]} - EV ${p.value[2].toFixed(2)}%<br/>${p.value[3]}`,
         },
         xAxis3D: { type: "value", name: "OVR", min: 60, max: 99, axisLabel: { color: "#94a3b8" } },
         yAxis3D: {

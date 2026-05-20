@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { ScoreRecord } from "../types";
+import { isInvestable } from "../verdictGuard";
 
 /**
  * Order-book-style 3D depth heatmap for the MARKET SCAN tab.
  *
  * Inspired by bookmap / lob-regime-scanner: a 3D bar field of ROI x liquidity
  * across the scanned universe, colored by validation tier. The heatmap renders
- * final BUY decisions so forecast gates do not hide executable flip ROI.
+ * final BUY decisions only after the 7-gate verdict is INVESTABLE.
  *
  * Uses echarts-gl via dynamic import so a fresh MARKET SCAN page that has no
  * data yet doesn't ship 420 KB of GL bundle to the user.
@@ -47,7 +48,7 @@ export function ScanDepthHeatmap3D({
     return records
       .filter((r) => {
         const action = r.decision?.action ?? r.decision_action;
-        return action === "BUY FLIP" || action === "BUY SPECULATIVE";
+        return isInvestable(r) && (action === "BUY FLIP" || action === "BUY SPECULATIVE");
       })
       .map((r) => {
         const ovr = Number(r.ovr ?? r.upgrade?.current_ovr ?? 0);
@@ -79,7 +80,7 @@ export function ScanDepthHeatmap3D({
         backgroundColor: "transparent",
         tooltip: {
           formatter: (p: { value: [number, number, number, string] }) =>
-            `OVR ${p.value[0]} · LIQ ${p.value[1]} · ROI ${p.value[2].toFixed(2)}% · ${p.value[3]}`,
+            `OVR ${p.value[0]} - LIQ ${p.value[1]} - ROI ${p.value[2].toFixed(2)}% - ${p.value[3]}`,
         },
         xAxis3D: { type: "value", name: "OVR", axisLabel: { color: "#94a3b8" } },
         yAxis3D: { type: "value", name: "LIQ (recent)", axisLabel: { color: "#94a3b8" } },

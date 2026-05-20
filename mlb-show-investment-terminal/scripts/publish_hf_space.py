@@ -47,6 +47,10 @@ def copy_tree(src: Path, dst: Path) -> None:
 
 def build_bundle(root: Path, bundle: Path) -> None:
     copy_file(root / "huggingface" / "README.md", bundle / "README.md")
+    copy_file(root / "README.md", bundle / "PROJECT_README.md")
+    final_audit = root / "FINAL_AUDIT.md"
+    if final_audit.exists():
+        copy_file(final_audit, bundle / "FINAL_AUDIT.md")
     copy_file(root / "Dockerfile.react", bundle / "Dockerfile")
     copy_file(root / "pyproject.toml", bundle / "pyproject.toml")
     copy_file(root / "requirements-api.txt", bundle / "requirements-api.txt")
@@ -58,6 +62,9 @@ def build_bundle(root: Path, bundle: Path) -> None:
     public_dir = root / "frontend" / "public"
     if public_dir.exists():
         copy_tree(public_dir, frontend / "public")
+    supabase_dir = root / "supabase"
+    if supabase_dir.exists():
+        copy_tree(supabase_dir, bundle / "supabase")
 
 
 def hf_space_url(repo_id: str) -> str:

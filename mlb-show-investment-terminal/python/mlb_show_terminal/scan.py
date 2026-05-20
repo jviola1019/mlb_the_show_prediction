@@ -7,8 +7,11 @@ from collections import Counter
 from typing import Any
 
 from .artifacts import score_row
+from .collector import collect_market_snapshot, collect_model_prediction
 from .forecast import forecast_diagnostics
 from .mlb_stats import MLBStatsError, recent_vs_season
+from .provenance import provenance_for_listing
+from .strategy_matrix import build_strategy_record
 from .theshow import TheShowError, discover_top_listings, get_listing
 from .uuid_tools import parse_uuid_tokens
 
@@ -96,12 +99,6 @@ def _verdict_from_record(record: dict[str, Any]) -> str:
     status = verdict.get("status")
     if status in ("INVESTABLE", "OBSERVATIONAL ONLY", "NOT INVESTABLE"):
         return str(status)
-    flip = record.get("flip") or {}
-    upgrade = record.get("upgrade") or {}
-    if flip.get("action") == "BUY" or upgrade.get("action") == "BUY SPECULATIVE":
-        return "INVESTABLE"
-    if flip.get("action") == "SELL" or upgrade.get("action") == "SELL":
-        return "OBSERVATIONAL ONLY"
     return "OBSERVATIONAL ONLY"
 
 
@@ -136,6 +133,44 @@ def _decision_for_record(record: dict[str, Any]) -> dict[str, Any]:
             "explanation": f"Row was dropped because {reason}.",
         }
 
+    strategy = record.get("strategy") if isinstance(record.get("strategy"), dict) else {}
+    composite = strategy.get("composite") if isinstance(strategy.get("composite"), dict) else {}
+    if composite.get("final_action"):
+        strat_flip = strategy.get("flip") if isinstance(strategy.get("flip"), dict) else {}
+        strat_dir = strategy.get("directional") if isinstance(strategy.get("directional"), dict) else {}
+        strat_inv = strategy.get("inventory") if isinstance(strategy.get("inventory"), dict) else {}
+        action = str(composite.get("final_action"))
+        reasons = _listify(composite.get("reason_codes"))
+        blockers = _listify(composite.get("gates_failed"))
+        formula_inputs = {
+            "sell_price": strat_flip.get("raw_ask"),
+            "buy_price": strat_flip.get("raw_bid"),
+            "after_tax_sale": strat_flip.get("after_tax_resale_value"),
+            "profit": strat_flip.get("expected_net_stubs"),
+            "roi": strat_flip.get("expected_roi_after_tax_and_friction"),
+            "p_exit": strat_flip.get("p_successful_exit"),
+            "expected_exit_hours": strat_inv.get("expected_exit_time_hours"),
+            "forecast_expected_ret": (strat_dir.get("expected_return_by_horizon") or {}).get("7d"),
+            "p_profit": strat_dir.get("p_profit"),
+            "hold_duration": composite.get("hold_duration"),
+        }
+        reason_codes = reasons or [action.replace(" ", "_")]
+        return {
+            "action": action,
+            "responsible_channel": str(composite.get("strategy_type") or "strategy_matrix"),
+            "reason_codes": reason_codes,
+            "reason_codes_csv": _csv(reason_codes),
+            "blockers": blockers,
+            "blockers_csv": _csv(blockers),
+            "formula_inputs": formula_inputs,
+            "confidence": composite.get("confidence"),
+            "model_status": f"strategy_matrix:{strategy.get('rule_version', 'unknown')}",
+            "probability_kind": "validated_directional"
+            if composite.get("investable_label") == "INVESTABLE"
+            else "strategy_matrix",
+            "explanation": str(composite.get("explanation") or "Strategy matrix assigned the final action."),
+        }
+
     flip = record.get("flip") or {}
     upgrade = record.get("upgrade") or {}
     forecast = record.get("forecast") or {}
@@ -166,7 +201,7 @@ def _decision_for_record(record: dict[str, Any]) -> dict[str, Any]:
         "roi": flip.get("roi"),
         "spread_pct": flip.get("spread_pct"),
         "liquidity_score": flip.get("liquidity_score"),
-        "forecast_expected_ret": forecast.get("expected_ret"),
+        "forecast_expected_ret": forecast.get("expected_ret") if verdict_status == "INVESTABLE" else None,
         "forecast_formula": formula.get("return_formula"),
         "p_cross_next_threshold": upgrade.get("p_cross_next_threshold"),
         "p_upgrade": upgrade.get("p_upgrade"),
@@ -182,7 +217,28 @@ def _decision_for_record(record: dict[str, Any]) -> dict[str, Any]:
     confidence: Any = None
     explanation = "No actionable flip or threshold edge was detected."
 
-    if upgrade.get("action") == "SELL":
+    if verdict_status == "NOT INVESTABLE":
+        action = "ABSTAIN"
+        channel = "forecast"
+        reason_codes = ["FORECAST_GOVERNANCE_BLOCK", *forecast_failed]
+        blockers = forecast_failed
+        confidence = 0
+        explanation = "Hard governance gates failed; no action verb is allowed."
+    elif flip.get("action") == "NO TRADE":
+        action = "NO TRADE"
+        channel = "data_quality"
+        reason_codes = ["FLIP_BLOCKED", *flip_reasons]
+        blockers = _unique([*market_blockers, *flip_failed, *forecast_failed])
+        confidence = 0
+        explanation = "Executable flip trade is blocked by market-data, ROI, or liquidity gates."
+    elif verdict_status == "OBSERVATIONAL ONLY":
+        action = "WATCH"
+        channel = "forecast"
+        reason_codes = ["FORECAST_DIAGNOSTIC_ONLY", *forecast_failed]
+        blockers = forecast_failed
+        confidence = 0
+        explanation = "Forecast diagnostics are directional only; no action verb is allowed."
+    elif upgrade.get("action") == "SELL":
         action = "SELL"
         channel = "upgrade"
         reason_codes = ["DOWNGRADE_RISK_OVERRIDES_FLIP", *upgrade_reasons]
@@ -218,20 +274,6 @@ def _decision_for_record(record: dict[str, Any]) -> dict[str, Any]:
         blockers = _unique([*market_blockers, *forecast_failed])
         confidence = upgrade.get("confidence")
         explanation = "Upgrade scenario is informative but not strong enough for a buy."
-    elif flip.get("action") == "NO TRADE":
-        action = "NO TRADE"
-        channel = "data_quality"
-        reason_codes = ["FLIP_BLOCKED", *flip_reasons]
-        blockers = _unique([*market_blockers, *flip_failed, *forecast_failed])
-        confidence = 0
-        explanation = "Executable flip trade is blocked by market-data, ROI, or liquidity gates."
-    elif verdict_status in {"OBSERVATIONAL ONLY", "NOT INVESTABLE"}:
-        action = "WATCH"
-        channel = "forecast"
-        reason_codes = ["FORECAST_DIAGNOSTIC_ONLY", *forecast_failed]
-        blockers = forecast_failed
-        confidence = 0
-        explanation = "Forecast diagnostics are not decision-grade; monitor only."
     else:
         reason_codes = ["NO_ACTIONABLE_EDGE", *flip_reasons, *upgrade_reasons]
 
@@ -265,6 +307,11 @@ def enrich_scan_fields(record: dict[str, Any]) -> dict[str, Any]:
     flip = record.get("flip") or {}
     upgrade = record.get("upgrade") or {}
     forecast = record.get("forecast") or {}
+    strategy = record.get("strategy") if isinstance(record.get("strategy"), dict) else {}
+    composite = strategy.get("composite") if isinstance(strategy.get("composite"), dict) else {}
+    strat_flip = strategy.get("flip") if isinstance(strategy.get("flip"), dict) else {}
+    strat_dir = strategy.get("directional") if isinstance(strategy.get("directional"), dict) else {}
+    strat_inv = strategy.get("inventory") if isinstance(strategy.get("inventory"), dict) else {}
     gates = forecast.get("gates") if isinstance(forecast.get("gates"), dict) else {}
     verdict = forecast.get("verdict") if isinstance(forecast.get("verdict"), dict) else {}
     validation = record.get("validation") if isinstance(record.get("validation"), dict) else {}
@@ -278,6 +325,8 @@ def enrich_scan_fields(record: dict[str, Any]) -> dict[str, Any]:
             "rarity": _first(record.get("rarity"), card.get("rarity")),
             "decision_tier": "UNRATED",
             "validation_tier": "UNRATED",
+            "data_coverage_tier": "UNVALIDATED",
+            "performance_validation_tier": "UNVALIDATED",
             "tier": "UNRATED",
             "flip_reason_codes": str(reason),
             "upgrade_reason_codes": "",
@@ -294,7 +343,7 @@ def enrich_scan_fields(record: dict[str, Any]) -> dict[str, Any]:
         return record
 
     decision = _decision_for_record(record)
-    decision_tier = forecast.get("tier") or "UNRATED"
+    decision_tier = forecast.get("performance_validation_tier") or forecast.get("validation_tier") or forecast.get("tier") or "UNRATED"
     record["decision"] = decision
     record.update({
         "rarity": _first(card.get("rarity"), upgrade.get("rarity")),
@@ -327,8 +376,18 @@ def enrich_scan_fields(record: dict[str, Any]) -> dict[str, Any]:
         "upgrade_action": upgrade.get("action"),
         "upgrade_reason_codes": _csv(upgrade.get("reason_codes") or upgrade.get("reason_codes_csv")),
         "forecast_direction": forecast.get("direction") or forecast.get("status") or "FORECAST UNAVAILABLE",
-        "forecast_ev_7d": forecast.get("expected_ret"),
+        "forecast_ev_7d": forecast.get("expected_ret") if verdict.get("status") == "INVESTABLE" else None,
         "forecast_p_up_7d": forecast.get("p_profit"),
+        "strategy_type": composite.get("strategy_type"),
+        "final_action": composite.get("final_action"),
+        "flip_verdict": strat_flip.get("verdict"),
+        "directional_verdict": strat_dir.get("verdict"),
+        "inventory_verdict": strat_inv.get("verdict"),
+        "holding_horizon": composite.get("hold_duration"),
+        "holding_instruction": composite.get("holding_instruction"),
+        "investable_label": composite.get("investable_label"),
+        "inventory_risk_score": strat_inv.get("inventory_risk_score"),
+        "expected_exit_time_hours": strat_inv.get("expected_exit_time_hours"),
         "forecast_formula": (forecast.get("formula") or {}).get("return_formula")
         if isinstance(forecast.get("formula"), dict)
         else None,
@@ -338,6 +397,8 @@ def enrich_scan_fields(record: dict[str, Any]) -> dict[str, Any]:
         "verdict_status": _verdict_from_record(record),
         "decision_tier": decision_tier,
         "validation_tier": decision_tier,
+        "data_coverage_tier": strat_dir.get("data_coverage_tier") or forecast.get("data_coverage_tier") or forecast.get("tier") or "UNRATED",
+        "performance_validation_tier": strat_dir.get("performance_validation_tier") or decision_tier,
         "tier": decision_tier,
         "gates_failed_csv": verdict.get("failed_csv") or gates.get("failed_csv") or "",
         "validation_mismatch": validation.get("mismatch"),
@@ -356,6 +417,7 @@ def analyze_listing(
     *,
     stats: dict[str, Any] | None = None,
     enrich_mlb_stats: bool = False,
+    collect: bool = True,
 ) -> dict[str, Any]:
     if stats is None and enrich_mlb_stats:
         stats = _stats_for_listing(listing)
@@ -367,12 +429,32 @@ def analyze_listing(
     scored["fetched_at"] = listing.get("fetched_at")
     scored["source_url"] = listing.get("source_url")
     scored["forecast"] = forecast_diagnostics(listing)
+    scored["strategy"] = build_strategy_record(scored, listing)
+    scored["provenance"] = provenance_for_listing(
+        listing,
+        sample_size=scored["forecast"].get("n_prices"),
+        validation_tier=((scored["strategy"].get("directional") or {}).get("validation_tier")),
+        data_coverage_tier=((scored["strategy"].get("directional") or {}).get("data_coverage_tier")),
+        performance_validation_tier=((scored["strategy"].get("directional") or {}).get("performance_validation_tier")),
+        rule_version=scored["strategy"].get("rule_version"),
+    )
+    scored["collection_status"] = (
+        collect_market_snapshot(listing, scored["strategy"])
+        if collect
+        else {"status": "skipped", "reason": "write token not supplied for public analysis request"}
+    )
     scored["decision_channels"] = {
         "flip": scored["flip"]["action"],
         "upgrade": scored["upgrade"]["action"],
         "forecast": scored["forecast"].get("direction", "FORECAST UNAVAILABLE"),
     }
-    return enrich_scan_fields(scored)
+    enriched = enrich_scan_fields(scored)
+    enriched["prediction_collection_status"] = (
+        collect_model_prediction(enriched)
+        if collect
+        else {"status": "skipped", "reason": "write token not supplied for public analysis request"}
+    )
+    return enriched
 
 
 def partition_scan(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -393,15 +475,15 @@ def partition_scan(records: list[dict[str, Any]]) -> dict[str, list[dict[str, An
             buckets["dropped"].append(rec)
             continue
         action = (rec.get("decision") or {}).get("action") or rec.get("decision_action")
-        if action == "BUY FLIP":
+        if action in {"BUY FLIP", "INSTANT FLIP ONLY", "SPREAD CAPTURE ONLY", "FLIP OR SHORT HOLD"}:
             buckets["flip_buys"].append(rec)
-        elif action == "BUY SPECULATIVE":
+        elif action in {"BUY SPECULATIVE", "SPECULATIVE HOLD"}:
             buckets["upgrade_buys"].append(rec)
         elif action == "SELL":
             buckets["sells"].append(rec)
-        elif action == "WATCH":
+        elif action in {"WATCH", "WATCHLIST / NO MODEL TRADE", "MANUAL REVIEW"}:
             buckets["watch"].append(rec)
-        elif action == "NO TRADE":
+        elif action in {"NO TRADE", "ABSTAIN", "AVOID", "AVOID / MANUAL REVIEW"}:
             buckets["no_trade"].append(rec)
         elif _verdict_from_record(rec) == "OBSERVATIONAL ONLY":
             buckets["observational"].append(rec)
@@ -455,6 +537,7 @@ def scan_payload(payload: dict[str, Any], progress: ProgressCallback | None = No
     year = int(payload.get("year") or 26)
     rate_delay = float(payload.get("rate_delay") if payload.get("rate_delay") is not None else 1.5)
     enrich_mlb_stats = bool(payload.get("enrich_mlb_stats", True))
+    collect = bool(payload.get("_persistence_authorized", False))
     discovered: dict[str, Any] | None = None
     uuid_source: Any = payload.get("uuids") or payload.get("uuid_text") or ""
     if mode == "top_live":
@@ -496,6 +579,15 @@ def scan_payload(payload: dict[str, Any], progress: ProgressCallback | None = No
             },
             "tier": "UNRATED",
         }
+            scored["strategy"] = build_strategy_record(scored)
+            scored["provenance"] = provenance_for_listing(
+                None,
+                sample_size=0,
+                validation_tier="UNVALIDATED",
+                data_coverage_tier="UNVALIDATED",
+                performance_validation_tier="UNVALIDATED",
+                rule_version=scored["strategy"].get("rule_version"),
+            )
             records.append(enrich_scan_fields(scored))
 
     total = len(parsed.uuids)
@@ -528,6 +620,7 @@ def scan_payload(payload: dict[str, Any], progress: ProgressCallback | None = No
                 listing,
                 stats=stats_by_uuid.get(uuid),
                 enrich_mlb_stats=enrich_mlb_stats and uuid not in stats_by_uuid,
+                collect=collect,
             )
             rec["scan_index"] = idx
             rec["scan_total"] = total

@@ -1,63 +1,85 @@
-# Project conventions — MLB Investment Terminal
+# Project Conventions - MLB Show Investment Terminal
 
-Single-stack Python + React app. **Do not propose edits to R/Shiny code** — that stack was sunset 2026-05-10 and the source is gone.
+Single-stack Python + React app. Do not propose edits to R/Shiny code. That stack was sunset on 2026-05-10.
 
 ## Architecture
 
-- **Backend:** FastAPI in `python/mlb_show_terminal/` is the **sole quant owner**. All forecasting, governance, partitioning, and EV math lives here.
-- **Frontend:** React 19 + TypeScript strict + Vite in `frontend/`. The only UI; tabs CARD, OVR, SCAN, VALIDATE, METHOD, OVERALL.
-- **Deploy:** Docker single-image (`Dockerfile.react`) used by Render (`render.yaml`), Hugging Face Docker Spaces (`huggingface/Dockerfile`), and local compose (`docker-compose.react.yml`). All on port 7860.
+- **Backend:** FastAPI in `python/mlb_show_terminal/` owns quant logic, strategy ontology, forecast diagnostics, execution math, backtests, persistence, and provenance.
+- **Frontend:** React 19 + TypeScript strict + Vite in `frontend/`. The terminal has 10 tabs: Command Center, Market Scanner, Target / Trade Ticket, Strategy Matrix, Forecast Lab, Backtesting & Validation, Execution Ledger, Risk & Inventory, Data Provenance & Audit, and README / Operations.
+- **Deploy:** Docker single-image on port `7860` for Hugging Face Spaces, Render, and local runs.
 
-## The 7-gate governance system (load-bearing)
+## Strategy Semantics
 
-`python/mlb_show_terminal/governance.py` is the **single source of truth** for verdicts. Seven gates:
+`strategy.*` is the source of truth for user-facing trade meaning.
 
-1. `schema_valid` — listing has UUID, ask/bid > 0, ≥ 8 completed_orders **(hard)**
-2. `history_sufficient` — ≥ max(50, 6 × horizon) price points **(hard)**
-3. `data_fresh` — most recent tick ≤ 48 h **(hard)**
-4. `cv_available` — walk-forward CV produced ≥ 30 trades **(hard)**
-5. `cv_skill_not_negative_sig` — IC upper CI ≥ 0 **(soft)**
-6. `ci_width_acceptable` — Brier CI ≤ 0.20 AND IC CI ≤ 0.50 **(soft)**
-7. `calibration_present` — reliability binning produced ≥ 5 usable bins **(soft)**
+- `strategy.flip`: spread-capture math after tax, friction, exit probability, expected holding time, and liquidation risk.
+- `strategy.directional`: 1d/3d/7d directional EV, quantiles, probability, model confidence, and hold horizon.
+- `strategy.inventory`: liquidity tier, dead-inventory risk, exit time, and position cap.
+- `strategy.composite`: final action from the deterministic matrix.
 
-Verdicts:
+`INVESTABLE` is directional-only. It is not a final action and must never appear for bearish or negative-EV cards. A positive spread with a bearish forecast becomes `INSTANT FLIP ONLY`, `SPREAD CAPTURE ONLY`, or manual review depending on liquidity and freshness.
 
-- **INVESTABLE** — all 7 pass; full BUY/SELL/HOLD and 3D viz shown.
-- **OBSERVATIONAL ONLY** — hard pass, soft fail; direction only, no action verb, EV/Kelly cells blanked, excluded from TOP BUY / TOP SELL.
-- **NOT INVESTABLE** — any hard fail; ABSTAIN, blocked placeholder, no forecast cone rendered.
+## Validation Semantics
 
-**Never** compute BUY/SELL labels in code paths that bypass `gating_verdict()`. Visuals must accept the verdict status as a prop and degrade via `frontend/src/verdictGuard.tsx`.
+Do not collapse sample depth and profitability proof into one tier.
 
-## 3D visualization layer
+- `data_coverage_tier`: real-history depth only.
+- `performance_validation_tier`: after-tax strategy performance, baseline comparison, and calibration evidence.
+- `validation_tier`: legacy compatibility alias for `performance_validation_tier`.
 
-Lazy-loaded under `frontend/src/viz/`:
+`SILVER` coverage can still be a losing strategy. Do not promote a strategy to `GOLD` or `PLATINUM` without real after-cost baseline outperformance and calibration evidence.
 
-- `ForecastSurface3D.tsx` — r3f cone surface in CARD tab
-- `ScanDepthHeatmap3D.tsx` — echarts-gl bar field in SCAN tab
-- `TierOvrEvScatter3D.tsx` — echarts-gl scatter in OVERALL tab
-- `ReliabilityRibbon3D.tsx` — r3f reliability ribbon in VALIDATE tab
+The older 7-gate forecast governance still exists for directional diagnostics, but final action semantics now come from the strategy ontology and composite matrix.
 
-Each accepts the record/verdict and degrades to recharts or a `<BlockedPlaceholder>` under failed gates.
+## Persistence
 
-## Test commands
+Runtime writes are allowed only through server-side persistence with explicit safeguards:
+
+- Browser code never receives Supabase service credentials.
+- `SUPABASE_URL` plus `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_SERVICE_KEY` enables Supabase REST writes.
+- `SUPABASE_DB_URL` enables direct Postgres only when `psycopg` is installed.
+- HTTP write endpoints require `TERMINAL_WRITE_TOKEN` or `MLB_SHOW_WRITE_TOKEN` and the `X-Terminal-Write-Token` header.
+- Public scan/analyze routes skip collection unless a trusted write token is present.
+- If persistence is missing, the app starts in read-only degraded mode.
+
+Default CORS is an allowlist for localhost dev origins and the Hugging Face Space URL. Override with `TERMINAL_CORS_ORIGINS` or `MLB_SHOW_CORS_ORIGINS`; do not use `*` in production.
+
+## Data Policy
+
+- No synthetic production market data.
+- No fake historical backfill.
+- Test fixtures are allowed only for automated tests and must not be presented as production history.
+- Retained The Show `price_history` rows can validate limited bid/ask price paths.
+- Retained `completed_orders` rows can validate directional sale-print behavior only, not spread-fill execution.
+- Realized execution quality requires user ledger rows or account/exported fills.
+
+## Test Commands
 
 ```powershell
-# backend
 python -m pip install -e ".[test]"
 python -m pytest python/tests/ -v
 
-# frontend
 cd frontend
-npm install
+npm ci
 npx tsc -b --noEmit
-npm test
+npm test -- --run
 npm run build
+```
+
+For local smoke:
+
+```powershell
+$env:MLB_SHOW_STATIC_DIR = "$PWD\frontend\dist"
+python -m uvicorn mlb_show_terminal.api:app --host 127.0.0.1 --port 7860
+cd frontend
+$env:PLAYWRIGHT_BASE_URL = "http://127.0.0.1:7860"
+npm run smoke
 ```
 
 ## Conventions
 
-- No runtime writes (API returns `runtime_writes: "prohibited"`); artifacts only.
-- No synthetic price data. Live API responses only.
-- LLM cross-check (if used) is commentary-only — never influences statistical state.
-- Bid/ask after-tax math uses `tax_rate` parameter (default 0.10 → 90% net after market tax). Hard-coded `0.90` factors are a regression — flag in review.
-- React tabs receive `ctx: TerminalContext` for shared state (loaded UUIDs, last scan, current record); never store data outside this context.
+- Preserve existing dirty-user changes. Do not revert files unless explicitly asked.
+- Keep legacy flat API fields during migration, but make new UI and docs prefer `strategy.*`.
+- Bid/ask after-tax math uses the configured `tax_rate` parameter, default `0.10`.
+- Hold recommendations must include a horizon such as `1d`, `3d`, `7d`, or manual review.
+- Do not relax thresholds to force profitable output.

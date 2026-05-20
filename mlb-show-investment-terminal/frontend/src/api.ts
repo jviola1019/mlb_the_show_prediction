@@ -10,7 +10,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(body || `${res.status} ${res.statusText}`);
+    let detail = body;
+    try {
+      const parsed = JSON.parse(body) as { detail?: unknown };
+      detail = typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail ?? parsed);
+    } catch {
+      detail = body;
+    }
+    throw new Error(detail || `${res.status} ${res.statusText}`);
   }
   return res.json() as Promise<T>;
 }
@@ -30,5 +37,11 @@ export const api = {
   startScanJob: (payload: Record<string, unknown>) => request<ScanJob>("/api/scan/jobs", { method: "POST", body: JSON.stringify(payload) }),
   scanJob: (jobId: string) => request<ScanJob>(`/api/scan/jobs/${jobId}`),
   upgrade: (payload: Record<string, unknown>) => request<Record<string, unknown>>("/api/upgrade/score", { method: "POST", body: JSON.stringify(payload) }),
-  backtest: (payload: Record<string, unknown>) => request<Record<string, unknown>>("/api/backtest/upgrades", { method: "POST", body: JSON.stringify(payload) })
+  backtest: (payload: Record<string, unknown>) => request<Record<string, unknown>>("/api/backtest/upgrades", { method: "POST", body: JSON.stringify(payload) }),
+  strategyBacktest: (payload: Record<string, unknown>) => request<Record<string, unknown>>("/api/backtest/strategy", { method: "POST", body: JSON.stringify(payload) }),
+  completedOrderBacktest: (payload: Record<string, unknown>) => request<Record<string, unknown>>("/api/backtest/completed-orders", { method: "POST", body: JSON.stringify(payload) }),
+  historicalSnapshotBacktest: (payload: Record<string, unknown>) => request<Record<string, unknown>>("/api/backtest/historical-snapshots", { method: "POST", body: JSON.stringify(payload) }),
+  persistence: () => request<Record<string, unknown>>("/api/persistence/status"),
+  ledgerLog: (payload: Record<string, unknown>) => request<Record<string, unknown>>("/api/ledger/log", { method: "POST", body: JSON.stringify(payload) }),
+  ledgerSummary: (payload: Record<string, unknown>) => request<Record<string, unknown>>("/api/ledger/summary", { method: "POST", body: JSON.stringify(payload) })
 };

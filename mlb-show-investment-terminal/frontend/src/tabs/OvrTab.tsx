@@ -205,7 +205,7 @@ export function OvrTab({ ctx }: { ctx: TerminalContext }) {
       ) : (
         <div className="empty">Click "Load player" to fully reset every field from the player's MLB stats and The Show card.</div>
       )}
-      {loadPlayer.error ? <div className="error">{loadPlayer.error.message}</div> : null}
+      {loadPlayer.error ? <div className="error" role="alert">{loadPlayer.error.message}</div> : null}
       <div className="control-grid">
         {Object.entries(form).map(([key, value]) => (
           <label key={key}>
@@ -227,7 +227,7 @@ export function OvrTab({ ctx }: { ctx: TerminalContext }) {
       <button onClick={() => score.mutate()} disabled={score.isPending}>
         <Activity size={15} /> Score upgrade probability
       </button>
-      {score.error ? <div className="error">{score.error.message}</div> : null}
+      {score.error ? <div className="error" role="alert">{score.error.message}</div> : null}
       {data ? (
         <>
           <div className="stat-grid">

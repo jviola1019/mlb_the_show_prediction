@@ -75,16 +75,16 @@ export function ScanTab({ ctx }: { ctx: TerminalContext }) {
     setSelectedUuid(uuid);
     ctx.addLoadedUuid(uuid);
     ctx.setCurrentRecord(record);
-    ctx.openTab("card");
+    ctx.openTab("target");
   }
 
   return (
     <div className="grid">
       <Panel title="Universe" kicker="server-side scan modes">
         <div className="segmented" role="group" aria-label="Scan mode">
-          <button className={mode === "top_live" ? "active" : ""} onClick={() => setMode("top_live")}>Top live rarity</button>
-          <button className={mode === "paste_uuids" ? "active" : ""} onClick={() => setMode("paste_uuids")}>Paste UUIDs</button>
-          <button className={mode === "session_history" ? "active" : ""} onClick={() => setMode("session_history")}>Session history</button>
+          <button className={mode === "top_live" ? "active" : ""} aria-pressed={mode === "top_live"} onClick={() => setMode("top_live")}>Top live rarity</button>
+          <button className={mode === "paste_uuids" ? "active" : ""} aria-pressed={mode === "paste_uuids"} onClick={() => setMode("paste_uuids")}>Paste UUIDs</button>
+          <button className={mode === "session_history" ? "active" : ""} aria-pressed={mode === "session_history"} onClick={() => setMode("session_history")}>Session history</button>
         </div>
 
         {mode === "top_live" ? (
@@ -112,7 +112,13 @@ export function ScanTab({ ctx }: { ctx: TerminalContext }) {
 
         {mode === "paste_uuids" ? (
           <>
-            <textarea value={uuidText} onChange={(e) => setUuidText(e.target.value)} placeholder="Paste UUIDs, URLs, or text containing UUIDs" rows={6} />
+            <textarea
+              value={uuidText}
+              onChange={(e) => setUuidText(e.target.value)}
+              placeholder="Paste UUIDs, URLs, or text containing UUIDs"
+              rows={6}
+              aria-label="UUID input"
+            />
             <div className="status-line">
               <Pill tone="info">{parsed.uuids.length} valid</Pill>
               <Pill tone={parsed.duplicates.length ? "warn" : "neutral"}>{parsed.duplicates.length} duplicates</Pill>
@@ -133,7 +139,16 @@ export function ScanTab({ ctx }: { ctx: TerminalContext }) {
         </div>
         {activeJob ? (
           <div className="scan-progress">
-            <div className="progress-strip determinate"><span style={{ width: `${progressPct}%` }} /></div>
+            <div
+              className="progress-strip determinate"
+              role="progressbar"
+              aria-label="Scan progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(progressPct)}
+            >
+              <span style={{ width: `${progressPct}%` }} />
+            </div>
             <div className="status-line">
               <Pill tone={activeJob.status === "error" ? "bad" : activeJob.status === "complete" ? "good" : "info"}>{activeJob.status}</Pill>
               <span className="muted">{activeJob.completed}/{activeJob.total} scanned</span>
@@ -144,8 +159,8 @@ export function ScanTab({ ctx }: { ctx: TerminalContext }) {
             </div>
           </div>
         ) : null}
-        {startScan.error ? <div className="error">{startScan.error.message}</div> : null}
-        {job.data?.error ? <div className="error">{job.data.error}</div> : null}
+        {startScan.error ? <div className="error" role="alert">{startScan.error.message}</div> : null}
+        {job.data?.error ? <div className="error" role="alert">{job.data.error}</div> : null}
       </Panel>
 
       {data ? (
@@ -166,7 +181,7 @@ export function ScanTab({ ctx }: { ctx: TerminalContext }) {
             </div>
             <div className="muted">{data.progress?.rate_limit_message}</div>
           </Panel>
-          <Panel title="Flip Buys" kicker="executable bid/ask math">
+          <Panel title="Flip Candidates" kicker="spread capture only; see final action">
             <RecordsTable rows={data.partitions.flip_buys} kind="flip" onRowClick={selectRecord} selectedUuid={selectedUuid} />
           </Panel>
           <Panel title="Market Depth 3D" kicker="OVR x liquidity x flip ROI, color = validation tier">
@@ -174,11 +189,11 @@ export function ScanTab({ ctx }: { ctx: TerminalContext }) {
               <ScanDepthHeatmap3D records={data.records} />
             </Suspense>
           </Panel>
-          <Panel title="Upgrade Buys" kicker="scenario threshold edge, uncalibrated unless backtested">
+          <Panel title="Speculative Holds" kicker="directional or roster scenario edge">
             <RecordsTable rows={data.partitions.upgrade_buys} kind="upgrade" onRowClick={selectRecord} selectedUuid={selectedUuid} />
           </Panel>
           <Panel title="Watch" kicker="informational or uncalibrated signals">
-            <p className="muted">Watch rows keep flip ROI, forecast EV, and scenario probabilities separate. They are not buy signals.</p>
+            <p className="muted">Watch rows keep flip ROI, forecast direction, and scenario probabilities separate. Blocked EV remains blank.</p>
             <RecordsTable rows={data.partitions.watch ?? []} kind="watch" onRowClick={selectRecord} selectedUuid={selectedUuid} />
           </Panel>
           <Panel title="Holds">

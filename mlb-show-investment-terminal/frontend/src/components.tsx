@@ -2,6 +2,7 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from "@tan
 import { CheckCircle2, Clock3, ExternalLink, ImageOff } from "lucide-react";
 import { Fragment, type ReactNode } from "react";
 import type { CardRow, ScoreRecord, SearchListing, Tone } from "./types";
+import { blankIf, governedAction } from "./verdictGuard";
 
 export function fmtPct(value: unknown, digits = 1): string {
   const n = Number(value);
@@ -32,8 +33,12 @@ export function formatDateTime(value?: string | null): string {
 
 export function toneForAction(action?: string): Tone {
   if (!action) return "neutral";
+  if (action.includes("INSTANT FLIP") || action.includes("SPREAD CAPTURE") || action.includes("FLIP OR SHORT HOLD")) return "good";
+  if (action.includes("SPECULATIVE")) return "info";
   if (action.includes("BUY")) return "good";
   if (action.includes("SELL") || action.includes("AVOID")) return "bad";
+  if (action.includes("ABSTAIN")) return "bad";
+  if (action.includes("MANUAL")) return "warn";
   if (action.includes("WATCH") || action.includes("OBSERVE")) return "info";
   if (action.includes("NO TRADE")) return "warn";
   return "neutral";
@@ -108,9 +113,10 @@ export function ReasonCodes({ codes, emptyLabel = "No explicit blockers" }: { co
 export function DensityDots({ score }: { score?: number | null }) {
   const n = Number(score);
   const filled = Number.isFinite(n) ? Math.max(0, Math.min(5, Math.round(n * 5))) : 0;
+  const label = `Liquidity ${fmtPct(score, 0)}, ${filled} of 5 bars`;
   return (
-    <div className="density-dots" title={`liquidity ${fmtPct(score, 0)}`}>
-      {Array.from({ length: 5 }, (_, idx) => <span key={idx} className={idx < filled ? "on" : ""} />)}
+    <div className="density-dots" title={label} aria-label={label} role="meter" aria-valuemin={0} aria-valuemax={5} aria-valuenow={filled}>
+      {Array.from({ length: 5 }, (_, idx) => <span key={idx} className={idx < filled ? "on" : ""} aria-hidden="true" />)}
     </div>
   );
 }
@@ -138,7 +144,7 @@ function rarityOf(record: ScoreRecord): string {
 }
 
 function decisionAction(record: ScoreRecord): string {
-  return String(record.decision?.action ?? record.decision_action ?? "-");
+  return String(record.strategy?.composite?.final_action ?? record.final_action ?? governedAction(record, String(record.decision?.action ?? record.decision_action ?? "")));
 }
 
 function decisionReasons(record: ScoreRecord): string[] | string | undefined {
@@ -151,6 +157,10 @@ function decisionBlockers(record: ScoreRecord): string[] | string | undefined {
 
 function forecastFormula(record: ScoreRecord): string {
   return String(record.forecast?.formula?.return_formula ?? record.forecast_formula ?? "-");
+}
+
+function forecastEv(record: ScoreRecord): string {
+  return blankIf(record, fmtPct(record.forecast?.expected_ret ?? record.forecast_ev_7d, 2));
 }
 
 export function CardIdentity({ record, compact = false }: { record: ScoreRecord; compact?: boolean }) {
@@ -180,8 +190,9 @@ export function SearchResultRow({ listing, query, onLoad }: { listing: SearchLis
   const uuid = String(item.uuid ?? "");
   const name = String(item.name ?? listing.listing_name ?? "-");
   const exact = Boolean(listing.search?.exact_name_match);
+  const label = `Load ${name}, ${item.rarity ?? "unknown rarity"}, OVR ${String(item.ovr ?? item.current_ovr ?? "-")}, ask ${fmtStubs(listing.best_sell_price)}`;
   return (
-    <button className={`search-row ${exact ? "exact" : ""}`} onClick={() => uuid && onLoad(uuid)} disabled={!uuid}>
+    <button className={`search-row ${exact ? "exact" : ""}`} onClick={() => uuid && onLoad(uuid)} disabled={!uuid} aria-label={label}>
       <span className="search-name"><HighlightedName name={name} query={query} /></span>
       <RarityPill rarity={item.rarity} />
       <span>OVR {String(item.ovr ?? item.current_ovr ?? "-")}</span>
@@ -201,16 +212,19 @@ const columns: ColumnDef<ScoreRecord>[] = [
   { header: "Rarity", cell: (ctx) => <RarityPill rarity={rarityOf(ctx.row.original)} /> },
   { header: "OVR", accessorFn: (r) => String(cardFromRecord(r).current_ovr ?? "-") },
   { header: "Decision", cell: (ctx) => <SignalPill action={decisionAction(ctx.row.original)} /> },
+  { header: "Flip Verdict", accessorFn: (r) => String(r.strategy?.flip?.verdict ?? r.flip_verdict ?? "-") },
+  { header: "Direction", accessorFn: (r) => String(r.strategy?.directional?.verdict ?? r.directional_verdict ?? r.forecast?.direction ?? "-") },
+  { header: "Inventory", accessorFn: (r) => String(r.strategy?.inventory?.verdict ?? r.inventory_verdict ?? "-") },
   { header: "Raw Bid", cell: (ctx) => fmtStubs(ctx.row.original.flip?.buy_price ?? cardFromRecord(ctx.row.original).raw_bid) },
   { header: "Raw Ask", cell: (ctx) => fmtStubs(ctx.row.original.flip?.sell_price ?? cardFromRecord(ctx.row.original).raw_ask) },
   { header: "After Tax", cell: (ctx) => fmtStubs(ctx.row.original.flip?.after_tax_sale) },
   { header: "Profit", cell: (ctx) => fmtStubs(ctx.row.original.flip?.profit) },
   { header: "Flip ROI", cell: (ctx) => fmtPct(ctx.row.original.flip?.roi, 2) },
-  { header: "Forecast EV", cell: (ctx) => fmtPct(ctx.row.original.forecast?.expected_ret ?? ctx.row.original.forecast_ev_7d, 2) },
+  { header: "Forecast EV", cell: (ctx) => forecastEv(ctx.row.original) },
   { header: "Spread", cell: (ctx) => fmtPct(ctx.row.original.flip?.spread_pct, 1) },
   { header: "Liq", cell: (ctx) => <DensityDots score={ctx.row.original.flip?.liquidity_score ?? cardFromRecord(ctx.row.original).liquidity_score} /> },
-  { header: "Flip", cell: (ctx) => <SignalPill action={ctx.row.original.flip?.action} /> },
-  { header: "Upgrade", cell: (ctx) => <SignalPill action={ctx.row.original.upgrade?.action} /> },
+  { header: "Flip", cell: (ctx) => <SignalPill action={governedAction(ctx.row.original, ctx.row.original.flip?.action)} /> },
+  { header: "Upgrade", cell: (ctx) => <SignalPill action={governedAction(ctx.row.original, ctx.row.original.upgrade?.action)} /> },
   { header: "Scenario P(Cross)", cell: (ctx) => fmtPct(ctx.row.original.upgrade?.p_cross_next_threshold, 1) },
   { header: "Forecast", accessorFn: (r) => r.forecast?.direction ?? r.forecast?.status ?? "-" },
   { header: "Decision Reasons", cell: (ctx) => <ReasonCodes codes={decisionReasons(ctx.row.original)} /> }
@@ -230,12 +244,14 @@ const scanColumns: Record<ScanTableKind, ColumnDef<ScoreRecord>[]> = {
     { header: "Rarity", cell: (ctx) => <RarityPill rarity={rarityOf(ctx.row.original)} /> },
     { header: "OVR", accessorFn: (r) => String(field(r, "ovr", cardFromRecord(r).current_ovr) ?? "-") },
     { header: "Decision", cell: (ctx) => <SignalPill action={decisionAction(ctx.row.original)} /> },
+    { header: "Flip Verdict", accessorFn: (r) => String(r.strategy?.flip?.verdict ?? r.flip_verdict ?? "-") },
+    { header: "Direction", accessorFn: (r) => String(r.strategy?.directional?.verdict ?? r.directional_verdict ?? "-") },
     { header: "Raw Bid", cell: (ctx) => fmtStubs(field(ctx.row.original, "raw_bid", ctx.row.original.flip?.buy_price)) },
     { header: "Raw Ask", cell: (ctx) => fmtStubs(field(ctx.row.original, "raw_ask", ctx.row.original.flip?.sell_price)) },
     { header: "After Tax", cell: (ctx) => fmtStubs(field(ctx.row.original, "after_tax_sale", ctx.row.original.flip?.after_tax_sale)) },
     { header: "Profit", cell: (ctx) => fmtStubs(field(ctx.row.original, "flip_profit", ctx.row.original.flip?.profit)) },
     { header: "Flip ROI", cell: (ctx) => fmtPct(field(ctx.row.original, "flip_roi", ctx.row.original.flip?.roi), 2) },
-    { header: "Forecast EV", cell: (ctx) => fmtPct(ctx.row.original.forecast_ev_7d ?? ctx.row.original.forecast?.expected_ret, 2) },
+    { header: "Forecast EV", cell: (ctx) => forecastEv(ctx.row.original) },
     { header: "Spread", cell: (ctx) => fmtPct(field(ctx.row.original, "spread_pct", ctx.row.original.flip?.spread_pct), 1) },
     { header: "Liq", cell: (ctx) => <DensityDots score={ctx.row.original.flip?.liquidity_score ?? cardFromRecord(ctx.row.original).liquidity_score} /> },
     { header: "Decision Reasons", cell: (ctx) => <ReasonCodes codes={decisionReasons(ctx.row.original)} /> }
@@ -254,6 +270,7 @@ const scanColumns: Record<ScanTableKind, ColumnDef<ScoreRecord>[]> = {
     { header: "Conf", cell: (ctx) => fmtNum(ctx.row.original.upgrade_confidence ?? ctx.row.original.upgrade?.confidence, 0) },
     { header: "Score", cell: (ctx) => fmtNum(ctx.row.original.upgrade_score ?? ctx.row.original.upgrade?.upgrade_score, 0) },
     { header: "Decision", cell: (ctx) => <SignalPill action={decisionAction(ctx.row.original)} /> },
+    { header: "Hold", accessorFn: (r) => String(r.strategy?.composite?.hold_duration ?? r.holding_horizon ?? "manual review") },
     { header: "Reasons", cell: (ctx) => <ReasonCodes codes={decisionReasons(ctx.row.original)} /> }
   ],
   watch: [
@@ -262,8 +279,9 @@ const scanColumns: Record<ScanTableKind, ColumnDef<ScoreRecord>[]> = {
     { header: "OVR", accessorFn: (r) => String(field(r, "ovr", cardFromRecord(r).current_ovr) ?? "-") },
     { header: "Decision", cell: (ctx) => <SignalPill action={decisionAction(ctx.row.original)} /> },
     { header: "Channel", accessorFn: (r) => String(r.responsible_channel ?? r.decision?.responsible_channel ?? "-") },
+    { header: "Strategy", accessorFn: (r) => String(r.strategy?.composite?.strategy_type ?? r.strategy_type ?? "-") },
     { header: "Flip ROI", cell: (ctx) => fmtPct(ctx.row.original.flip_roi ?? ctx.row.original.flip?.roi, 2) },
-    { header: "Forecast EV", cell: (ctx) => fmtPct(ctx.row.original.forecast_ev_7d ?? ctx.row.original.forecast?.expected_ret, 2) },
+    { header: "Forecast EV", cell: (ctx) => forecastEv(ctx.row.original) },
     { header: "Scenario P(Cross)", cell: (ctx) => fmtPct(ctx.row.original.p_cross_next_threshold ?? ctx.row.original.upgrade?.p_cross_next_threshold, 1) },
     { header: "Decision Reasons", cell: (ctx) => <ReasonCodes codes={decisionReasons(ctx.row.original)} /> },
     { header: "Blockers", cell: (ctx) => <ReasonCodes codes={decisionBlockers(ctx.row.original)} emptyLabel="No blocking gate" /> }
@@ -273,10 +291,10 @@ const scanColumns: Record<ScanTableKind, ColumnDef<ScoreRecord>[]> = {
     { header: "Rarity", cell: (ctx) => <RarityPill rarity={rarityOf(ctx.row.original)} /> },
     { header: "OVR", accessorFn: (r) => String(field(r, "ovr", cardFromRecord(r).current_ovr) ?? "-") },
     { header: "Decision", cell: (ctx) => <SignalPill action={decisionAction(ctx.row.original)} /> },
-    { header: "Flip", cell: (ctx) => <SignalPill action={ctx.row.original.flip_action ?? ctx.row.original.flip?.action} /> },
-    { header: "Upgrade", cell: (ctx) => <SignalPill action={ctx.row.original.upgrade_action ?? ctx.row.original.upgrade?.action} /> },
+    { header: "Flip", cell: (ctx) => <SignalPill action={governedAction(ctx.row.original, ctx.row.original.flip_action ?? ctx.row.original.flip?.action)} /> },
+    { header: "Upgrade", cell: (ctx) => <SignalPill action={governedAction(ctx.row.original, ctx.row.original.upgrade_action ?? ctx.row.original.upgrade?.action)} /> },
     { header: "Forecast", accessorFn: (r) => String(r.forecast_direction ?? r.forecast?.direction ?? "-") },
-    { header: "Forecast EV", cell: (ctx) => fmtPct(ctx.row.original.forecast_ev_7d ?? ctx.row.original.forecast?.expected_ret, 2) },
+    { header: "Forecast EV", cell: (ctx) => forecastEv(ctx.row.original) },
     { header: "Flip ROI", cell: (ctx) => fmtPct(ctx.row.original.flip_roi ?? ctx.row.original.flip?.roi, 2) },
     { header: "Dist 85", accessorFn: (r) => String(r.distance_to_85 ?? r.upgrade?.distance_to_85 ?? "-") },
     { header: "Scenario P(Cross)", cell: (ctx) => fmtPct(ctx.row.original.p_cross_next_threshold ?? ctx.row.original.upgrade?.p_cross_next_threshold, 1) },
@@ -287,8 +305,8 @@ const scanColumns: Record<ScanTableKind, ColumnDef<ScoreRecord>[]> = {
     { header: "Rarity", cell: (ctx) => <RarityPill rarity={rarityOf(ctx.row.original)} /> },
     { header: "OVR", accessorFn: (r) => String(field(r, "ovr", cardFromRecord(r).current_ovr) ?? "-") },
     { header: "Decision", cell: (ctx) => <SignalPill action={decisionAction(ctx.row.original)} /> },
-    { header: "Flip", cell: (ctx) => <SignalPill action={ctx.row.original.flip_action ?? ctx.row.original.flip?.action} /> },
-    { header: "Upgrade", cell: (ctx) => <SignalPill action={ctx.row.original.upgrade_action ?? ctx.row.original.upgrade?.action} /> },
+    { header: "Flip", cell: (ctx) => <SignalPill action={governedAction(ctx.row.original, ctx.row.original.flip_action ?? ctx.row.original.flip?.action)} /> },
+    { header: "Upgrade", cell: (ctx) => <SignalPill action={governedAction(ctx.row.original, ctx.row.original.upgrade_action ?? ctx.row.original.upgrade?.action)} /> },
     { header: "Flip ROI", cell: (ctx) => fmtPct(ctx.row.original.flip_roi ?? ctx.row.original.flip?.roi, 2) },
     { header: "Scenario P(Down)", cell: (ctx) => fmtPct(ctx.row.original.p_downgrade ?? ctx.row.original.upgrade?.p_downgrade, 1) },
     { header: "Forecast", accessorFn: (r) => String(r.forecast_direction ?? r.forecast?.direction ?? "-") },
@@ -302,7 +320,7 @@ const scanColumns: Record<ScanTableKind, ColumnDef<ScoreRecord>[]> = {
     { header: "Raw Bid", cell: (ctx) => fmtStubs(field(ctx.row.original, "raw_bid", ctx.row.original.flip?.buy_price)) },
     { header: "Raw Ask", cell: (ctx) => fmtStubs(field(ctx.row.original, "raw_ask", ctx.row.original.flip?.sell_price)) },
     { header: "Flip ROI", cell: (ctx) => fmtPct(ctx.row.original.flip_roi ?? ctx.row.original.flip?.roi, 2) },
-    { header: "Forecast EV", cell: (ctx) => fmtPct(ctx.row.original.forecast_ev_7d ?? ctx.row.original.forecast?.expected_ret, 2) },
+    { header: "Forecast EV", cell: (ctx) => forecastEv(ctx.row.original) },
     { header: "Blockers", cell: (ctx) => <ReasonCodes codes={decisionBlockers(ctx.row.original)} /> }
   ],
   observational: [
@@ -311,7 +329,7 @@ const scanColumns: Record<ScanTableKind, ColumnDef<ScoreRecord>[]> = {
     { header: "OVR", accessorFn: (r) => String(field(r, "ovr", cardFromRecord(r).current_ovr) ?? "-") },
     { header: "Verdict", accessorFn: (r) => String(r.verdict?.status ?? r.verdict_status ?? "OBSERVATIONAL ONLY") },
     { header: "Direction", accessorFn: (r) => String(r.forecast_direction ?? r.forecast?.direction ?? "-") },
-    { header: "Forecast EV", cell: (ctx) => fmtPct(ctx.row.original.forecast_ev_7d ?? ctx.row.original.forecast?.expected_ret, 2) },
+    { header: "Forecast EV", cell: (ctx) => forecastEv(ctx.row.original) },
     { header: "Validation Tier", accessorFn: (r) => String(r.validation_tier ?? r.decision_tier ?? r.tier ?? r.forecast?.tier ?? "UNRATED") },
     { header: "Failed Gates", cell: (ctx) => <ReasonCodes codes={ctx.row.original.verdict?.failed_csv ?? ctx.row.original.gates_failed_csv} /> }
   ],
@@ -340,12 +358,13 @@ export function RecordsTable({
   if (!rows.length) return <div className="empty">{emptyMessage(kind)}</div>;
   return (
     <div className="table-wrap">
-      <table>
+      <table aria-label={`${kind.replace("_", " ")} records`}>
+        <caption className="sr-only">{`${kind.replace("_", " ")} records`}</caption>
         <thead>
           {table.getHeaderGroups().map((group) => (
             <tr key={group.id}>
               {group.headers.map((header) => (
-                <th key={header.id}>{flexRender(header.column.columnDef.header, header.getContext())}</th>
+                <th key={header.id} scope="col">{flexRender(header.column.columnDef.header, header.getContext())}</th>
               ))}
             </tr>
           ))}
@@ -356,6 +375,16 @@ export function RecordsTable({
               <tr
                 className={`${onRowClick ? "clickable-row" : ""} ${selectedUuid && row.original.uuid === selectedUuid ? "selected-row" : ""}`}
                 onClick={() => onRowClick?.(row.original)}
+                onKeyDown={(event) => {
+                  if (!onRowClick) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onRowClick(row.original);
+                  }
+                }}
+                tabIndex={onRowClick ? 0 : undefined}
+                role={onRowClick ? "button" : undefined}
+                aria-label={onRowClick ? `Open ${row.original.name ?? row.original.card?.name ?? row.original.uuid ?? "record"}` : undefined}
               >
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id}>

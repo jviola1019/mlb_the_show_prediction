@@ -19,7 +19,7 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
   const [ask, setAsk] = useState(String(currentAsk));
   const [bid, setBid] = useState(String(currentBid));
   const manual = useMutation({
-    mutationFn: () => api.cardValidate({ sell_price: Number(ask), buy_price: Number(bid) }),
+    mutationFn: (prices: { ask: string; bid: string }) => api.cardValidate({ sell_price: Number(prices.ask), buy_price: Number(prices.bid) }),
     onSuccess: ctx.markApiOk,
     onError: ctx.markApiErr
   });
@@ -31,14 +31,47 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
     const newAsk = ctx.currentRecord?.raw_ask ?? ctx.currentRecord?.flip?.sell_price;
     const newBid = ctx.currentRecord?.raw_bid ?? ctx.currentRecord?.flip?.buy_price;
     if (newAsk != null && newBid != null) {
-      setAsk(String(newAsk));
-      setBid(String(newBid));
-      manual.mutate();
+      const nextAsk = String(newAsk);
+      const nextBid = String(newBid);
+      setAsk(nextAsk);
+      setBid(nextBid);
+      manual.mutate({ ask: nextAsk, bid: nextBid });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx.currentRecord?.uuid]);
   const backtest = useMutation({
-    mutationFn: () => api.backtest({ predictions: JSON.parse(predictions), labels: JSON.parse(labels), n_bins: 5 }),
+    mutationFn: () => api.backtest({ predictions: parseJsonRows(predictions, "prediction rows"), labels: parseJsonRows(labels, "label rows"), n_bins: 5 }),
+    onSuccess: ctx.markApiOk,
+    onError: ctx.markApiErr
+  });
+  const strategyBacktest = useMutation({
+    mutationFn: () => api.strategyBacktest({ snapshots: ctx.lastScan?.records ?? [], min_snapshots: 30 }),
+    onSuccess: ctx.markApiOk,
+    onError: ctx.markApiErr
+  });
+  const completedOrderBacktest = useMutation({
+    mutationFn: () => api.completedOrderBacktest({
+      uuids: Array.from(new Set([
+        ...(ctx.currentRecord?.uuid ? [ctx.currentRecord.uuid] : []),
+        ...ctx.loadedUuids
+      ])),
+      min_orders: 30,
+      lookback_orders: 20,
+      horizons_days: [1, 3, 7]
+    }),
+    onSuccess: ctx.markApiOk,
+    onError: ctx.markApiErr
+  });
+  const historicalSnapshotBacktest = useMutation({
+    mutationFn: () => api.historicalSnapshotBacktest({
+      uuids: Array.from(new Set([
+        ...(ctx.currentRecord?.uuid ? [ctx.currentRecord.uuid] : []),
+        ...ctx.loadedUuids
+      ])),
+      min_snapshots: 30,
+      lookback_snapshots: 9,
+      horizons_days: [1, 3, 7]
+    }),
     onSuccess: ctx.markApiOk,
     onError: ctx.markApiErr
   });
@@ -85,9 +118,9 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
         <div className="form-row three">
           <input value={ask} onChange={(e) => setAsk(e.target.value)} placeholder="raw ask / sell price" aria-label="manual ask" />
           <input value={bid} onChange={(e) => setBid(e.target.value)} placeholder="raw bid / buy price" aria-label="manual bid" />
-          <button onClick={() => manual.mutate()} disabled={manual.isPending || !ask || !bid}><CheckCircle2 size={15} /> Validate</button>
+          <button onClick={() => manual.mutate({ ask, bid })} disabled={manual.isPending || !ask || !bid}><CheckCircle2 size={15} /> Validate</button>
         </div>
-        {manual.error ? <div className="error">{manual.error.message}</div> : null}
+        {manual.error ? <div className="error" role="alert">{manual.error.message}</div> : null}
         {manual.data ? (
           <div className="stat-grid">
             <Stat label="After tax" value={fmtStubs((manual.data.validation as Record<string, unknown>)?.manual_after_tax_sale)} />
@@ -110,6 +143,78 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
         </div>
         <pre>{JSON.stringify(scanSummary, null, 2)}</pre>
       </Panel>
+      <Panel title="Composite Strategy Backtest" kicker="real snapshots only">
+        <p className="muted">Runs only on timestamped real market snapshots. If the scan/session has insufficient real history, the verdict stays UNVALIDATED.</p>
+        <button onClick={() => strategyBacktest.mutate()} disabled={strategyBacktest.isPending || !ctx.lastScan?.records.length}><CheckCircle2 size={15} /> Run strategy backtest</button>
+        {strategyBacktest.error ? <div className="error" role="alert">{strategyBacktest.error.message}</div> : null}
+        {strategyBacktest.data ? (
+          <>
+            <div className="stat-grid">
+              <Stat label="Status" value={String(strategyBacktest.data.status ?? "-")} tone={strategyBacktest.data.status === "available" ? "good" : "warn"} />
+              <Stat label="Verdict" value={String(strategyBacktest.data.validation_verdict ?? "-")} />
+              <Stat label="Coverage tier" value={String(strategyBacktest.data.data_coverage_tier ?? "UNVALIDATED")} />
+              <Stat label="Performance tier" value={String(strategyBacktest.data.performance_validation_tier ?? "UNVALIDATED")} />
+              <Stat label="Snapshots" value={fmtNum(strategyBacktest.data.snapshots, 0)} />
+              <Stat label="Trades" value={fmtNum(strategyBacktest.data.trades_taken, 0)} />
+              <Stat label="Total stubs" value={fmtStubs((strategyBacktest.data.metrics as Record<string, unknown> | undefined)?.total_stubs)} />
+              <Stat label="Hit rate" value={fmtPct((strategyBacktest.data.metrics as Record<string, unknown> | undefined)?.hit_rate, 1)} />
+            </div>
+            <pre>{JSON.stringify({ baselines: strategyBacktest.data.baselines, baseline_comparison: strategyBacktest.data.baseline_comparison, reason_codes: strategyBacktest.data.reason_codes }, null, 2)}</pre>
+          </>
+        ) : null}
+      </Panel>
+      <Panel title="Completed-Order Historical Backtest" kicker="The Show sale snapshots">
+        <p className="muted">Fetches loaded UUIDs server-side and uses real completed sales as historical sale snapshots. It does not infer historical bid/ask depth, so spread-flip validation remains unavailable from this source.</p>
+        <button onClick={() => completedOrderBacktest.mutate()} disabled={completedOrderBacktest.isPending || (!ctx.currentRecord?.uuid && !ctx.loadedUuids.length)}><CheckCircle2 size={15} /> Backtest completed orders</button>
+        {completedOrderBacktest.error ? <div className="error" role="alert">{completedOrderBacktest.error.message}</div> : null}
+        {completedOrderBacktest.data ? (
+          <>
+            <div className="stat-grid">
+              <Stat label="Status" value={String(completedOrderBacktest.data.status ?? "-")} tone={completedOrderBacktest.data.status === "available" ? "good" : "warn"} />
+              <Stat label="Coverage tier" value={String(completedOrderBacktest.data.data_coverage_tier ?? "UNVALIDATED")} />
+              <Stat label="Performance tier" value={String(completedOrderBacktest.data.performance_validation_tier ?? "UNVALIDATED")} />
+              <Stat label="Sale snapshots" value={fmtNum(completedOrderBacktest.data.snapshots, 0)} />
+              <Stat label="Opportunities" value={fmtNum(completedOrderBacktest.data.evaluated_opportunities, 0)} />
+              <Stat label="Trades" value={fmtNum(completedOrderBacktest.data.trades_taken, 0)} />
+              <Stat label="Total stubs" value={fmtStubs((completedOrderBacktest.data.metrics as Record<string, unknown> | undefined)?.total_stubs)} />
+            </div>
+            <pre>{JSON.stringify({
+              reason_codes: completedOrderBacktest.data.reason_codes,
+              leakage_guard: completedOrderBacktest.data.leakage_guard,
+              source_limitations: completedOrderBacktest.data.source_limitations,
+              horizons: completedOrderBacktest.data.horizons,
+              baselines: completedOrderBacktest.data.baselines,
+              baseline_comparison: completedOrderBacktest.data.baseline_comparison
+            }, null, 2)}</pre>
+          </>
+        ) : null}
+      </Panel>
+      <Panel title="Historical Bid/Ask Snapshot Backtest" kicker="The Show price_history">
+        <p className="muted">Fetches loaded UUIDs and uses real The Show daily price_history bid/ask rows for rolling-origin 1d/3d/7d strategy validation. If fewer than 30 real snapshots are available, it stays UNVALIDATED.</p>
+        <button onClick={() => historicalSnapshotBacktest.mutate()} disabled={historicalSnapshotBacktest.isPending || (!ctx.currentRecord?.uuid && !ctx.loadedUuids.length)}><CheckCircle2 size={15} /> Backtest historical snapshots</button>
+        {historicalSnapshotBacktest.error ? <div className="error" role="alert">{historicalSnapshotBacktest.error.message}</div> : null}
+        {historicalSnapshotBacktest.data ? (
+          <>
+            <div className="stat-grid">
+              <Stat label="Status" value={String(historicalSnapshotBacktest.data.status ?? "-")} tone={historicalSnapshotBacktest.data.status === "available" ? "good" : "warn"} />
+              <Stat label="Coverage tier" value={String(historicalSnapshotBacktest.data.data_coverage_tier ?? "UNVALIDATED")} />
+              <Stat label="Performance tier" value={String(historicalSnapshotBacktest.data.performance_validation_tier ?? "UNVALIDATED")} />
+              <Stat label="Bid/ask snapshots" value={fmtNum(historicalSnapshotBacktest.data.snapshots, 0)} />
+              <Stat label="Opportunities" value={fmtNum(historicalSnapshotBacktest.data.evaluated_opportunities, 0)} />
+              <Stat label="Trades" value={fmtNum(historicalSnapshotBacktest.data.trades_taken, 0)} />
+              <Stat label="Total stubs" value={fmtStubs((historicalSnapshotBacktest.data.metrics as Record<string, unknown> | undefined)?.total_stubs)} />
+            </div>
+            <pre>{JSON.stringify({
+              reason_codes: historicalSnapshotBacktest.data.reason_codes,
+              leakage_guard: historicalSnapshotBacktest.data.leakage_guard,
+              source_limitations: historicalSnapshotBacktest.data.source_limitations,
+              horizons: historicalSnapshotBacktest.data.horizons,
+              baselines: historicalSnapshotBacktest.data.baselines,
+              baseline_comparison: historicalSnapshotBacktest.data.baseline_comparison
+            }, null, 2)}</pre>
+          </>
+        ) : null}
+      </Panel>
       <Panel title="Upgrade Backtest" kicker="real labels required">
         <p className="muted">Predictions can come from the last scan; labels must be real historical roster-update outcomes.</p>
         <div className="split">
@@ -118,7 +223,7 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
         </div>
         <button onClick={useLastScanPredictions} disabled={!ctx.lastScan?.records.length}><CheckCircle2 size={15} /> Use last scan predictions</button>
         <button onClick={() => backtest.mutate()} disabled={backtest.isPending}><CheckCircle2 size={15} /> Run backtest</button>
-        {backtest.error ? <div className="error">{backtest.error.message}</div> : null}
+        {backtest.error ? <div className="error" role="alert">{backtest.error.message}</div> : null}
         {data ? (
           <>
             <div className="stat-grid">
@@ -157,4 +262,14 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
       </Panel>
     </div>
   );
+}
+
+function parseJsonRows(value: string, label: string): Array<Record<string, unknown>> {
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) throw new Error(`${label} must be a JSON array`);
+    return parsed as Array<Record<string, unknown>>;
+  } catch (error) {
+    throw new Error(`${label}: ${error instanceof Error ? error.message : "invalid JSON"}`);
+  }
 }

@@ -63,3 +63,6 @@ coverage). All math verified before any UI was wired.
   prefers-reduced-motion + small-viewport guards, neon glow on signal
   pills, animated panel borders, scanline overlay, holographic
   data-density indicator.
+# Archival Note
+
+This changelog captures older pre-ontology work. Current strategy labels, validation tiers, persistence behavior, and deployment instructions are documented in `README.md`, `FINAL_AUDIT.md`, and `docs/parity/python-react-parity.md`.

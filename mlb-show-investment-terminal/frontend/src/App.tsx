@@ -4,15 +4,19 @@ import { TerminalShell, type Tab } from "./TerminalShell";
 import type { ScanResponse, ScoreRecord, SearchResponse } from "./types";
 
 const nowIso = () => new Date().toISOString();
-const OverallTab = lazy(() => import("./tabs/OverallTab").then((m) => ({ default: m.OverallTab })));
-const CardTab = lazy(() => import("./tabs/CardTab").then((m) => ({ default: m.CardTab })));
-const OvrTab = lazy(() => import("./tabs/OvrTab").then((m) => ({ default: m.OvrTab })));
-const ScanTab = lazy(() => import("./tabs/ScanTab").then((m) => ({ default: m.ScanTab })));
-const ValidateTab = lazy(() => import("./tabs/ValidateTab").then((m) => ({ default: m.ValidateTab })));
-const MethodTab = lazy(() => import("./tabs/MethodTab").then((m) => ({ default: m.MethodTab })));
+const CommandCenterTab = lazy(() => import("./tabs/OverallTab").then((m) => ({ default: m.OverallTab })));
+const MarketScannerTab = lazy(() => import("./tabs/ScanTab").then((m) => ({ default: m.ScanTab })));
+const TargetTradeTicketTab = lazy(() => import("./tabs/CardTab").then((m) => ({ default: m.CardTab })));
+const StrategyMatrixTab = lazy(() => import("./tabs/TerminalTabs").then((m) => ({ default: m.StrategyMatrixTab })));
+const ForecastLabTab = lazy(() => import("./tabs/TerminalTabs").then((m) => ({ default: m.ForecastLabTab })));
+const BacktestingValidationTab = lazy(() => import("./tabs/ValidateTab").then((m) => ({ default: m.ValidateTab })));
+const ExecutionLedgerTab = lazy(() => import("./tabs/TerminalTabs").then((m) => ({ default: m.ExecutionLedgerTab })));
+const RiskInventoryTab = lazy(() => import("./tabs/TerminalTabs").then((m) => ({ default: m.RiskInventoryTab })));
+const DataAuditTab = lazy(() => import("./tabs/TerminalTabs").then((m) => ({ default: m.DataAuditTab })));
+const OperationsTab = lazy(() => import("./tabs/MethodTab").then((m) => ({ default: m.MethodTab })));
 
 export default function App() {
-  const [active, setActive] = useState<Tab>("overall");
+  const [active, setActive] = useState<Tab>("command");
   const [state, setState] = useState<TerminalSessionState>({ loadedUuids: [] });
 
   const ctx = useMemo<TerminalContext>(() => ({
@@ -25,30 +29,34 @@ export default function App() {
     setCurrentRecord: (record: ScoreRecord) => setState((prev) => ({
       ...prev,
       currentRecord: record,
-      lastListingAt: record.fetched_at || nowIso()
+      lastListingAt: record.fetched_at || record.provenance?.pull_timestamp || nowIso(),
     })),
     setLastSearch: (payload: SearchResponse) => setState((prev) => ({
       ...prev,
       lastSearch: payload,
-      lastSearchAt: payload.fetched_at || nowIso()
+      lastSearchAt: payload.fetched_at || nowIso(),
     })),
     setLastScan: (payload: ScanResponse) => setState((prev) => ({
       ...prev,
       lastScan: payload,
-      lastScanAt: nowIso()
+      lastScanAt: nowIso(),
     })),
     markApiOk: () => setState((prev) => ({ ...prev, apiOkAt: nowIso() })),
     markApiErr: () => setState((prev) => ({ ...prev, apiErrAt: nowIso() })),
-    openTab: (tab) => setActive(tab)
+    openTab: (tab) => setActive(tab),
   }), [state]);
 
   const body = {
-    overall: <OverallTab ctx={ctx} />,
-    card: <CardTab ctx={ctx} />,
-    ovr: <OvrTab ctx={ctx} />,
-    scan: <ScanTab ctx={ctx} />,
-    validate: <ValidateTab ctx={ctx} />,
-    method: <MethodTab />
+    command: <CommandCenterTab ctx={ctx} />,
+    scanner: <MarketScannerTab ctx={ctx} />,
+    target: <TargetTradeTicketTab ctx={ctx} />,
+    matrix: <StrategyMatrixTab ctx={ctx} />,
+    forecast: <ForecastLabTab ctx={ctx} />,
+    validation: <BacktestingValidationTab ctx={ctx} />,
+    ledger: <ExecutionLedgerTab ctx={ctx} />,
+    risk: <RiskInventoryTab ctx={ctx} />,
+    audit: <DataAuditTab ctx={ctx} />,
+    ops: <OperationsTab />,
   }[active];
 
   return (

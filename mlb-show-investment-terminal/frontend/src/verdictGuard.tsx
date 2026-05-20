@@ -36,7 +36,28 @@ export function isObservational(record: ScoreRecord | null | undefined): boolean
 }
 
 export function blankIf<T>(record: ScoreRecord | null | undefined, value: T): T | string {
-  return isInvestable(record) ? value : "—";
+  return isInvestable(record) ? value : "-";
+}
+
+export function governedAction(
+  record: ScoreRecord | null | undefined,
+  rawAction?: string | null,
+): string {
+  const compositeAction = record?.strategy?.composite?.final_action ?? record?.final_action;
+  if (compositeAction && (!rawAction || rawAction === record?.decision_action || rawAction === record?.decision?.action)) {
+    return compositeAction;
+  }
+  const status = verdictOf(record);
+  if (status === "INVESTABLE") {
+    return rawAction || record?.decision?.action || record?.decision_action || "-";
+  }
+  if (status === "NOT INVESTABLE") {
+    return "ABSTAIN";
+  }
+  const direction = String(record?.forecast?.direction ?? record?.forecast_direction ?? "").toUpperCase();
+  if (direction.includes("BULL")) return "OBSERVE UP";
+  if (direction.includes("BEAR")) return "OBSERVE DOWN";
+  return "OBSERVE";
 }
 
 function verdictMeta(status: VerdictStatus): { tone: string; label: string; icon: ReactNode } {
@@ -82,7 +103,7 @@ export function VerdictBanner({ record }: { record: ScoreRecord | null | undefin
 
 export function BlockedPlaceholder({
   reasons,
-  title = "BLOCKED · GATE FAILURE",
+  title = "BLOCKED - GATE FAILURE",
 }: {
   reasons?: string[];
   title?: string;
@@ -110,9 +131,37 @@ export function BlockedPlaceholder({
 
 export function ObservationalOverlay({ children }: { children: ReactNode }) {
   return (
-    <div className="observational-overlay" role="group" aria-label="Directional only — no action verb">
+    <div className="observational-overlay" role="group" aria-label="Directional only - no action verb">
       <div className="observational-watermark">DIRECTIONAL ONLY</div>
       <div className="observational-content">{children}</div>
+    </div>
+  );
+}
+
+export function ObservationalPlaceholder({
+  reasons,
+  title = "DIRECTIONAL ONLY - SOFT GATE FAILURE",
+}: {
+  reasons?: string[];
+  title?: string;
+}) {
+  return (
+    <div className="observational-placeholder" role="status">
+      <div className="blocked-placeholder-head">
+        <Eye size={18} aria-hidden />
+        <span>{title}</span>
+      </div>
+      <p className="muted">
+        Direction is retained, but forecast EV, Kelly sizing, and investment visuals are suppressed
+        until every governance gate passes.
+      </p>
+      {reasons?.length ? (
+        <ul className="blocked-placeholder-reasons">
+          {reasons.map((r, idx) => (
+            <li key={idx}>{r}</li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -132,7 +181,7 @@ export function GuardedVisual({
     return <BlockedPlaceholder reasons={verdict?.reasons} title={blockedTitle} />;
   }
   if (status === "OBSERVATIONAL ONLY") {
-    return <ObservationalOverlay>{children}</ObservationalOverlay>;
+    return <ObservationalPlaceholder reasons={verdict?.reasons} />;
   }
   return <>{children}</>;
 }

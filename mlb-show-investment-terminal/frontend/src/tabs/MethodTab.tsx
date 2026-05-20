@@ -10,28 +10,32 @@ export function MethodTab() {
         <p>React renders the terminal. FastAPI serves `/api` and the static React build from the same origin. Python owns every quant decision and reproducible CLI command.</p>
       </Panel>
       <Panel title="Engine Contracts">
-        <pre>{`flip.after_tax_sale = sell_price * 0.90
+        <pre>{`flip.after_tax_sale = sell_price * (1 - tax_rate)
 flip.profit = after_tax_sale - buy_price
 flip.roi = profit / buy_price
 flip.spread_pct = (sell_price - buy_price) / sell_price
+tax_rate defaults to 0.10
 
 upgrade = scenario threshold model until real historical backtests calibrate it
 forecast = diagnostic-only price-history bootstrap
 forecast_ev = ((terminal_price * spread_ratio * (1 - tax_rate)) - current_price) / current_price
 
-final decision = explicit policy over separate flip, upgrade, forecast, and data-quality channels`}</pre>
+strategy.flip = executable spread capture
+strategy.directional = holding EV and recommended hold duration
+strategy.inventory = exit risk and position cap
+strategy.composite = deterministic final action from the matrix`}</pre>
       </Panel>
       <Panel title="Decision Policy">
         <ul className="rule-list">
-          <li>BUY FLIP requires executable bid/ask math after tax, positive ROI, and sufficient liquidity.</li>
-          <li>BUY SPECULATIVE requires a threshold-crossing roster scenario and executable market data.</li>
-          <li>WATCH keeps informational signals visible without issuing a buy.</li>
-          <li>NO TRADE shows the exact blocker: missing price, non-executable book, low liquidity, or failed data gate.</li>
-          <li>SELL can override a positive flip edge only when downgrade risk is explicit.</li>
+          <li>INSTANT FLIP ONLY means spread capture is positive, but the directional model says not to hold.</li>
+          <li>SPREAD CAPTURE ONLY means a flip edge exists while the directional forecast is neutral.</li>
+          <li>SPECULATIVE HOLD is allowed only when directional EV is positive and inventory quality is acceptable.</li>
+          <li>WATCHLIST / NO MODEL TRADE means real history, freshness, or validation is insufficient.</li>
+          <li>INVESTABLE is directional-only and must include a hold duration.</li>
         </ul>
       </Panel>
       <Panel title="Deployment">
-        <p>Render and Hugging Face use one Docker image. Runtime storage is ephemeral; historical labels are committed artifacts, not written by the hosted app.</p>
+        <p>Hugging Face serves FastAPI and the React build from one process. Supabase writes are server-side only and the app degrades to read-only mode when credentials are absent.</p>
       </Panel>
       <Panel title="Known Limitations">
         <ul className="rule-list">

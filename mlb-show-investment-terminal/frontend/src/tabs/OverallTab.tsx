@@ -15,7 +15,8 @@ import {
   SignalPill,
   Stat,
 } from "../components";
-import { VerdictBanner, isInvestable, verdictOf } from "../verdictGuard";
+import { finalAction, StrategySummary } from "../strategyComponents";
+import { VerdictBanner, blankIf, governedAction, isInvestable, verdictOf } from "../verdictGuard";
 
 const TierOvrEvScatter3D = lazy(() => import("../viz/TierOvrEvScatter3D"));
 
@@ -41,7 +42,7 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
     <div className="grid">
       {record ? (
         <Panel
-          title="Current Card"
+          title="Command Center"
           kicker={
             <span className="kicker-row">
               <Pill tone={overallTone}>{String(record.name ?? record.card?.name ?? "loaded")}</Pill>
@@ -51,11 +52,12 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
           className="current-card-panel"
         >
           <CardIdentity record={record} />
+          <StrategySummary record={record} />
           <VerdictBanner record={record} />
           <div className="stat-grid">
             <Stat
-              label="Verdict"
-              value={String(cardStatus ?? "-")}
+              label="Final Action"
+              value={<SignalPill action={finalAction(record)} />}
               tone={overallTone}
             />
             <Stat
@@ -71,12 +73,21 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
               value={String(record.card?.rarity ?? "-")}
             />
             <Stat
-              label="Flip signal"
-              value={<SignalPill action={record.decision_action ?? record.decision?.action ?? (isInvestable(record) ? record.flip?.action : "WATCH")} />}
+              label="Strategy type"
+              value={String(record.strategy?.composite?.strategy_type ?? record.responsible_channel ?? "-")}
+            />
+            <Stat
+              label="Legacy verdict"
+              value={String(cardStatus ?? "-")}
+              tone={overallTone}
+            />
+            <Stat
+              label="Flip channel"
+              value={<SignalPill action={governedAction(record, record.decision_action ?? record.decision?.action ?? record.flip?.action)} />}
             />
             <Stat
               label="Upgrade signal"
-              value={<SignalPill action={record.upgrade?.action} />}
+              value={<SignalPill action={governedAction(record, record.upgrade?.action)} />}
             />
             <Stat
               label="Raw ask"
@@ -98,7 +109,7 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
             />
             <Stat
               label="Forecast EV"
-              value={fmtPct(record.forecast?.expected_ret, 2)}
+              value={blankIf(record, fmtPct(record.forecast?.expected_ret, 2))}
             />
             <Stat
               label="Direction"
@@ -130,7 +141,7 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
       ) : (
         <Panel title="Current Card" kicker="not loaded">
           <p className="muted">
-            Search a player on the CARD tab and click Load. Their verdict, validation tier, OVR, forecast,
+            Search a player on the Trade Ticket tab and click Load. Their final action, validation tier, OVR, forecast,
             and flip economics will populate here automatically.
           </p>
         </Panel>
@@ -145,15 +156,15 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
           <Stat label="Last API OK" value={formatDateTime(ctx.apiOkAt)} tone={ctx.apiOkAt ? "good" : "neutral"} />
           <Stat label="Last API ERR" value={formatDateTime(ctx.apiErrAt)} tone={ctx.apiErrAt ? "bad" : "neutral"} />
           <Stat label="Server started" value={formatDateTime(session.data?.started_at)} />
-          <Stat label="Runtime writes" value={session.data?.runtime_writes ?? "prohibited"} />
+          <Stat label="Runtime writes" value={runtimeWrites(session.data?.runtime_writes)} />
         </div>
       </Panel>
 
       <Panel title="Last Scan" kicker={ctx.lastScanAt ? formatDateTime(ctx.lastScanAt) : "not run"}>
         <div className="stat-grid">
           <Stat label="Cards scanned" value={String(ctx.lastScan?.records.length ?? 0)} />
-          <Stat label="Flip buys" value={String(counts?.flip_buys ?? 0)} tone={(counts?.flip_buys ?? 0) > 0 ? "good" : "neutral"} />
-          <Stat label="Upgrade buys" value={String(counts?.upgrade_buys ?? 0)} tone={(counts?.upgrade_buys ?? 0) > 0 ? "info" : "neutral"} />
+          <Stat label="Flip candidates" value={String(counts?.flip_buys ?? 0)} tone={(counts?.flip_buys ?? 0) > 0 ? "good" : "neutral"} />
+          <Stat label="Hold candidates" value={String(counts?.upgrade_buys ?? 0)} tone={(counts?.upgrade_buys ?? 0) > 0 ? "info" : "neutral"} />
           <Stat label="Watch" value={String(counts?.watch ?? 0)} tone={(counts?.watch ?? 0) > 0 ? "info" : "neutral"} />
           <Stat label="No trade" value={String(counts?.no_trade ?? 0)} tone={(counts?.no_trade ?? 0) > 0 ? "warn" : "neutral"} />
           <Stat label="Holds" value={String(counts?.holds ?? 0)} />
@@ -190,8 +201,8 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
       </Panel>
 
       {ctx.lastScan?.records?.length ? (
-        <Panel title="Universe · 3D" kicker="OVR × tier × forecast EV, color = verdict">
-          <Suspense fallback={<div className="empty">loading universe…</div>}>
+        <Panel title="Universe 3D" kicker="OVR x tier x directional EV">
+          <Suspense fallback={<div className="empty">loading universe...</div>}>
             <TierOvrEvScatter3D records={ctx.lastScan.records} />
           </Suspense>
         </Panel>
@@ -199,11 +210,11 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
 
       <Panel title="Operating Rules" kicker="hard constraints">
         <ul className="rule-list">
-          <li>7-gate governance (governance.py) is the single source of verdicts: INVESTABLE / OBSERVATIONAL ONLY / NOT INVESTABLE.</li>
-          <li>OBSERVATIONAL records are excluded from TOP BUY / TOP SELL and have EV/Kelly fields blanked client-side.</li>
-          <li>Executable flip decisions use current bid/ask after-tax math; tax_rate is parametrized (default 10%).</li>
-          <li>Forecast EV is diagnostic and cannot create flip BUY or SELL labels.</li>
-          <li>Historical calibration enters as gate 7 (calibration_present) - absence demotes the verdict to OBSERVATIONAL.</li>
+          <li>Final action comes from the strategy matrix, not from a single BUY ladder.</li>
+          <li>INVESTABLE is directional-only and appears only when positive holding EV clears gates.</li>
+          <li>Positive spread plus bearish forecast becomes INSTANT FLIP ONLY, never INVESTABLE.</li>
+          <li>Historical calibration and Supabase snapshots control validation tier promotion.</li>
+          <li>When real history is insufficient, the model state is data collection / no execution.</li>
         </ul>
       </Panel>
     </div>
@@ -218,4 +229,15 @@ function pct(value: unknown) {
 function num(value: unknown) {
   const n = Number(value);
   return Number.isFinite(n) ? n.toLocaleString("en-US") : "-";
+}
+
+function runtimeWrites(value: unknown): string {
+  if (!value) return "read-only degraded";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") {
+    const status = (value as Record<string, unknown>).status ?? "unknown";
+    const mode = (value as Record<string, unknown>).mode ?? "";
+    return `${status}${mode ? ` / ${mode}` : ""}`;
+  }
+  return String(value);
 }

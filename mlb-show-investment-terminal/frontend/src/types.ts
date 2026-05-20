@@ -114,6 +114,87 @@ export type ForecastResult = {
   verdict?: Verdict;
 };
 
+export type StrategyBlock = {
+  rule_version?: string;
+  flip?: {
+    verdict?: string;
+    raw_ask?: number | null;
+    raw_bid?: number | null;
+    after_tax_resale_value?: number | null;
+    expected_net_stubs?: number | null;
+    expected_roi_after_tax_and_friction?: number | null;
+    p_successful_exit?: number | null;
+    expected_holding_time_hours?: number | null;
+    worst_case_liquidation_value?: number | null;
+    action?: string;
+    reason_codes?: string[];
+    gates_passed?: string[];
+    gates_failed?: string[];
+  };
+  directional?: {
+    verdict?: string;
+    investable_label?: string | null;
+    expected_return_by_horizon?: Record<string, number | null>;
+    p_up?: number | null;
+    p_down?: number | null;
+    p_profit?: number | null;
+    prediction_interval?: Record<string, number | null>;
+    quantile_forecasts?: Record<string, number | null>;
+    forecast_cone?: Array<Record<string, unknown>>;
+    model_confidence?: number | null;
+    validation_tier?: string;
+    data_coverage_tier?: string;
+    performance_validation_tier?: string;
+    recommended_holding_horizon?: string;
+    holding_instruction?: string;
+    source_verdict?: string | null;
+    reason_codes?: string[];
+    gates_passed?: string[];
+    gates_failed?: string[];
+  };
+  inventory?: {
+    verdict?: string;
+    inventory_risk_score?: number | null;
+    expected_exit_time_hours?: number | null;
+    liquidity_score?: number | null;
+    liquidity_recent?: number | null;
+    dead_inventory_warning?: string | null;
+    position_size_recommendation?: string;
+    max_position_stubs?: number;
+    reason_codes?: string[];
+    gates_passed?: string[];
+    gates_failed?: string[];
+  };
+  composite?: {
+    final_action?: string;
+    strategy_type?: string;
+    investable_label?: string | null;
+    hold_duration?: string;
+    holding_instruction?: string;
+    explanation?: string;
+    gates_passed?: string[];
+    gates_failed?: string[];
+    reason_codes?: string[];
+    confidence?: number | null;
+  };
+};
+
+export type Provenance = {
+  source?: string;
+  source_url?: string | null;
+  listing_timestamp?: string | null;
+  pull_timestamp?: string | null;
+  api_response_timestamp?: string | null;
+  data_freshness?: string;
+  sample_size?: number | null;
+  validation_tier?: string | null;
+  data_coverage_tier?: string | null;
+  performance_validation_tier?: string | null;
+  raw_data_hash?: string;
+  model_version?: string;
+  rule_version?: string;
+};
+
 export type CardRow = {
   uuid?: string;
   name?: string;
@@ -145,6 +226,8 @@ export type ScoreRecord = {
   validation?: Record<string, unknown>;
   decision_channels?: Record<string, string>;
   decision?: DecisionResult;
+  strategy?: StrategyBlock;
+  provenance?: Provenance;
   fetched_at?: string;
   source_url?: string;
   rarity?: string;
@@ -178,6 +261,16 @@ export type ScoreRecord = {
   flip_reason_codes?: string;
   upgrade_reason_codes?: string;
   decision_action?: string;
+  final_action?: string;
+  strategy_type?: string;
+  flip_verdict?: string;
+  directional_verdict?: string;
+  inventory_verdict?: string;
+  holding_horizon?: string;
+  holding_instruction?: string;
+  investable_label?: string | null;
+  inventory_risk_score?: number | null;
+  expected_exit_time_hours?: number | null;
   responsible_channel?: string;
   decision_reason_codes?: string;
   decision_blockers?: string;
@@ -189,6 +282,8 @@ export type ScoreRecord = {
   verdict_status?: VerdictStatus | string;
   decision_tier?: string;
   validation_tier?: string;
+  data_coverage_tier?: string;
+  performance_validation_tier?: string;
   tier?: string;
   scan_index?: number;
   scan_total?: number;
@@ -286,7 +381,7 @@ export type SessionSummary = {
   server_time: string;
   started_at: string;
   runtime_seconds: number;
-  runtime_writes: string;
+  runtime_writes: string | Record<string, unknown>;
   historical_data: string;
 };
 

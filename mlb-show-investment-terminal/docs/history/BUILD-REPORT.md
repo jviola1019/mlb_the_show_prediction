@@ -192,3 +192,6 @@ inspection.
 - Roster-update calendar is hardcoded for the 2026 season per the
   prompt and decays after 2026-06-05; the next year's calendar would
   need to be regenerated via `data-raw/generate_data.R`.
+# Archival Note
+
+This document describes an older pre-ontology build. It is retained for history only. Current trade semantics, persistence rules, validation tiers, and deployment guidance live in `README.md`, `FINAL_AUDIT.md`, and `docs/parity/python-react-parity.md`.

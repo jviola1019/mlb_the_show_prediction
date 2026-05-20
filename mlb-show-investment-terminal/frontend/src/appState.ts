@@ -1,5 +1,17 @@
 import type { ScanResponse, ScoreRecord, SearchResponse } from "./types";
 
+export type TerminalTab =
+  | "command"
+  | "scanner"
+  | "target"
+  | "matrix"
+  | "forecast"
+  | "validation"
+  | "ledger"
+  | "risk"
+  | "audit"
+  | "ops";
+
 export type TerminalSessionState = {
   loadedUuids: string[];
   currentRecord?: ScoreRecord;
@@ -19,7 +31,7 @@ export type TerminalSessionActions = {
   setLastScan: (payload: ScanResponse) => void;
   markApiOk: () => void;
   markApiErr: () => void;
-  openTab: (tab: "overall" | "card" | "ovr" | "scan" | "validate" | "method") => void;
+  openTab: (tab: TerminalTab) => void;
 };
 
 export type TerminalContext = TerminalSessionState & TerminalSessionActions;

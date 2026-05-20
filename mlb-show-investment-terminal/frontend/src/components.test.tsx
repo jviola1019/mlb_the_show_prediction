@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { FreshnessBadge, HighlightedName, RecordsTable } from "./components";
+import { tabs } from "./TerminalShell";
+import { GuardedVisual } from "./verdictGuard";
 
 describe("RecordsTable", () => {
   it("renders an empty state", () => {
@@ -11,7 +13,8 @@ describe("RecordsTable", () => {
   it("renders scan rows without requiring frontend quant math", () => {
     render(<RecordsTable rows={[{ name: "Flip", flip: { action: "BUY", roi: 0.125 }, upgrade: { action: "HOLD" } }]} />);
     expect(screen.getAllByText("Flip").length).toBeGreaterThan(0);
-    expect(screen.getByText("BUY")).toBeInTheDocument();
+    expect(screen.getAllByText("OBSERVE").length).toBeGreaterThan(0);
+    expect(screen.queryByText("BUY")).not.toBeInTheDocument();
   });
 
   it("renders partition-specific flip columns and supports row selection", () => {
@@ -59,6 +62,95 @@ describe("RecordsTable", () => {
     expect(screen.getByText("Validation Tier")).toBeInTheDocument();
     expect(screen.getAllByText("Gold").length).toBeGreaterThan(0);
     expect(screen.getByText("BRONZE")).toBeInTheDocument();
+    expect(screen.queryByText("-18.00%")).not.toBeInTheDocument();
+  });
+
+  it("only renders forecast EV values for investable rows", () => {
+    render(<RecordsTable
+      rows={[
+        {
+          name: "Investable",
+          forecast_ev_7d: 0.12,
+          verdict_status: "INVESTABLE",
+          decision_action: "HOLD",
+        },
+        {
+          name: "Observed",
+          forecast_ev_7d: -0.18,
+          verdict_status: "OBSERVATIONAL ONLY",
+          decision_action: "WATCH",
+        },
+      ]}
+    />);
+    expect(screen.getByText("12.00%")).toBeInTheDocument();
+    expect(screen.queryByText("-18.00%")).not.toBeInTheDocument();
+  });
+
+  it("suppresses raw BUY actions when verdict is not investable", () => {
+    render(<RecordsTable
+      rows={[
+        {
+          name: "Blocked Buy",
+          decision_action: "BUY FLIP",
+          flip: { action: "BUY" },
+          verdict_status: "NOT INVESTABLE",
+        },
+        {
+          name: "Observed Buy",
+          decision_action: "BUY SPECULATIVE",
+          upgrade: { action: "BUY SPECULATIVE" },
+          verdict_status: "OBSERVATIONAL ONLY",
+          forecast_direction: "FORECAST BULLISH",
+        },
+      ]}
+    />);
+    expect(screen.getAllByText("ABSTAIN").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("OBSERVE UP").length).toBeGreaterThan(0);
+    expect(screen.queryByText("BUY FLIP")).not.toBeInTheDocument();
+    expect(screen.queryByText("BUY SPECULATIVE")).not.toBeInTheDocument();
+  });
+
+  it("exposes the required ten terminal tabs", () => {
+    expect(tabs.map((tab) => tab.id)).toEqual([
+      "command",
+      "scanner",
+      "target",
+      "matrix",
+      "forecast",
+      "validation",
+      "ledger",
+      "risk",
+      "audit",
+      "ops",
+    ]);
+  });
+
+  it("renders strategy final action instead of generic investable", () => {
+    render(<RecordsTable
+      rows={[{
+        name: "Matt Olson",
+        verdict_status: "INVESTABLE",
+        decision_action: "INVESTABLE",
+        strategy: {
+          composite: { final_action: "INSTANT FLIP ONLY" },
+          flip: { verdict: "FLIP PASS" },
+          directional: { verdict: "BEARISH" },
+          inventory: { verdict: "HIGH LIQUIDITY" },
+        },
+      }]}
+    />);
+    expect(screen.getAllByText("INSTANT FLIP ONLY").length).toBeGreaterThan(0);
+    expect(screen.queryByText("INVESTABLE")).not.toBeInTheDocument();
+  });
+
+  it("suppresses guarded visual children for observational verdicts", () => {
+    render(
+      <GuardedVisual record={{ verdict_status: "OBSERVATIONAL ONLY" }}>
+        <div>EV 99.00%</div>
+      </GuardedVisual>
+    );
+    expect(screen.queryByText("EV 99.00%")).not.toBeInTheDocument();
+    expect(screen.getByText(/DIRECTIONAL ONLY/i)).toBeInTheDocument();
   });
 
   it("empty no-trade table explains blockers instead of generic no rows", () => {

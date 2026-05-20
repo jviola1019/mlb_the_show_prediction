@@ -124,3 +124,6 @@ find . -maxdepth 5 -type f | sort
 git status --short
 git log --oneline -10
 ```
+# Archival Note
+
+This sprint prompt belongs to the older governance-only implementation. Current source-of-truth semantics are the strategy ontology and composite matrix documented in `README.md`, `FINAL_AUDIT.md`, and `docs/parity/python-react-parity.md`.

@@ -59,10 +59,11 @@ class ScanDecisionTests(unittest.TestCase):
         self.assertEqual(payload["counts"]["dropped"], 0)
         self.assertEqual([row["uuid"] for row in payload["records"]], parsed.uuids)
         for row in payload["records"]:
-            self.assertIn(row["decision_action"], {"BUY FLIP", "NO TRADE", "HOLD", "WATCH", "SELL", "BUY SPECULATIVE"})
+            self.assertIn(row["decision_action"], {"WATCHLIST / NO MODEL TRADE", "AVOID / MANUAL REVIEW"})
             self.assertTrue(row["decision_reason_codes"])
             self.assertEqual(row["rarity"], "Gold")
             self.assertNotEqual(row["rarity"], row.get("decision_tier"))
+            self.assertIn("strategy", row)
 
     def test_valid_not_investable_market_data_routes_to_no_trade_not_dropped(self):
         payload = scan_payload({
@@ -82,8 +83,8 @@ class ScanDecisionTests(unittest.TestCase):
         self.assertEqual(payload["counts"]["dropped"], 0)
         self.assertEqual(payload["counts"]["no_trade"], 1)
         row = payload["partitions"]["no_trade"][0]
-        self.assertEqual(row["decision_action"], "NO TRADE")
-        self.assertIn("MISSING_BUY_PRICE", row["decision_blockers"])
+        self.assertEqual(row["decision_action"], "AVOID / MANUAL REVIEW")
+        self.assertIn("flip:buy_price", row["decision_blockers"])
 
 
 if __name__ == "__main__":
