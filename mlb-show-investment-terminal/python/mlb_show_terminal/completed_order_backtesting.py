@@ -601,24 +601,29 @@ def _snapshot_realized(
     tax_rate: float,
 ) -> dict[str, Any]:
     entry_bid = float(entry["raw_bid"])
-    current_exit = float(entry["raw_ask"]) * (1 - tax_rate)
-    future_exit = float(future["raw_ask"]) * (1 - tax_rate)
+    entry_ask = float(entry["raw_ask"])
+    future_bid = float(future["raw_bid"])
+    future_ask = float(future["raw_ask"])
+    current_exit = entry_ask * (1 - tax_rate)
     if final_action in {"INSTANT FLIP ONLY", "SPREAD_CAPTURE_ONLY", "SPREAD CAPTURE ONLY"}:
+        entry_price = entry_bid
         exit_value = current_exit
         exit_timestamp = entry["timestamp"]
         family = "spread_capture"
-        assumption = "limit buy at historical bid, relist at historical ask, no queue-depth proof"
+        assumption = "proxy spread capture: historical bid entry and ask exit, no queue-depth or fill proof"
     elif final_action == "FLIP OR SHORT HOLD":
-        exit_value = future_exit
+        entry_price = entry_ask
+        exit_value = future_bid * (1 - tax_rate)
         exit_timestamp = future["timestamp"]
         family = "flip_or_short_hold"
-        assumption = "limit buy at historical bid, hold to future ask, no queue-depth proof"
+        assumption = "conservative short hold: buy at current ask and liquidate to future bid after tax"
     else:
-        exit_value = future_exit
+        entry_price = entry_ask
+        exit_value = future_bid * (1 - tax_rate)
         exit_timestamp = future["timestamp"]
         family = "directional_hold"
-        assumption = "directional snapshot hold uses historical bid entry and future ask exit after tax"
-    net_stubs = exit_value - entry_bid
+        assumption = "conservative directional hold: buy at current ask and liquidate to future bid after tax"
+    net_stubs = exit_value - entry_price
     entry_ts = _parse_dt(entry["timestamp"])
     exit_ts = _parse_dt(exit_timestamp)
     holding_days = None
@@ -626,11 +631,11 @@ def _snapshot_realized(
         holding_days = max(0.0, (exit_ts - entry_ts).total_seconds() / 86400.0)
     return {
         "strategy_family": family,
-        "entry_price": entry_bid,
+        "entry_price": entry_price,
         "exit_price": exit_value / (1 - tax_rate) if tax_rate < 1 else exit_value,
         "exit_after_tax": exit_value,
         "net_stubs": net_stubs,
-        "roi": net_stubs / entry_bid if entry_bid else 0.0,
+        "roi": net_stubs / entry_price if entry_price else 0.0,
         "hit": net_stubs > 0,
         "failed_exit": net_stubs <= 0,
         "fill_probability_proxy": None,

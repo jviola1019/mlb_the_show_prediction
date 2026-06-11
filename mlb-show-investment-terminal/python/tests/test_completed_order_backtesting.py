@@ -104,6 +104,29 @@ class CompletedOrderBacktestingTests(unittest.TestCase):
         self.assertGreater(result["evaluated_opportunities"], 0)
         self.assertIn("execution_assumption", result["sample_predictions"][0])
 
+    def test_historical_directional_hold_uses_conservative_ask_to_future_bid(self):
+        rows = historical_market_snapshots_from_listing(_price_history_listing(n=15, drift=25))
+        listing = {
+            "source_url": "https://mlb26.theshow.com/apis/listing.json?uuid=" + "c" * 32,
+            "item": {"uuid": "c" * 32, "name": "History Fixture"},
+            "price_history": [
+                {"date": row["timestamp"], "best_buy_price": row["raw_bid"], "best_sell_price": row["raw_ask"]}
+                for row in rows
+            ],
+        }
+        result = evaluate_historical_snapshot_backtest(
+            [listing],
+            min_snapshots=10,
+            lookback_snapshots=3,
+            horizons_days=[1],
+            tax_rate=0,
+        )
+        hold_rows = [row for row in result["sample_predictions"] if row["strategy_family"] in {"directional_hold", "flip_or_short_hold"}]
+        self.assertTrue(hold_rows)
+        first = hold_rows[0]
+        self.assertGreater(first["entry_price"], first["exit_price"])
+        self.assertIn("buy at current ask", first["execution_assumption"])
+
 
 if __name__ == "__main__":
     unittest.main()

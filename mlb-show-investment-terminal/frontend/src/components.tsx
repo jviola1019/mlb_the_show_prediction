@@ -147,6 +147,22 @@ function decisionAction(record: ScoreRecord): string {
   return String(record.strategy?.composite?.final_action ?? record.final_action ?? governedAction(record, String(record.decision?.action ?? record.decision_action ?? "")));
 }
 
+function maxHoldLabel(record: ScoreRecord): string {
+  const hours = Number(record.strategy?.composite?.max_hold_hours);
+  if (!Number.isFinite(hours)) return "manual review";
+  if (hours < 24) return `${hours.toFixed(hours % 1 ? 1 : 0)}h`;
+  const days = hours / 24;
+  return `${days.toFixed(days % 1 ? 1 : 0)}d`;
+}
+
+function exitTiming(record: ScoreRecord): string {
+  return String(record.strategy?.composite?.exit_timing ?? record.strategy?.composite?.holding_instruction ?? record.holding_instruction ?? "-");
+}
+
+function entryTiming(record: ScoreRecord): string {
+  return String(record.strategy?.composite?.entry_timing ?? "-");
+}
+
 function decisionReasons(record: ScoreRecord): string[] | string | undefined {
   return record.decision?.reason_codes ?? record.decision_reason_codes;
 }
@@ -212,6 +228,7 @@ const columns: ColumnDef<ScoreRecord>[] = [
   { header: "Rarity", cell: (ctx) => <RarityPill rarity={rarityOf(ctx.row.original)} /> },
   { header: "OVR", accessorFn: (r) => String(cardFromRecord(r).current_ovr ?? "-") },
   { header: "Decision", cell: (ctx) => <SignalPill action={decisionAction(ctx.row.original)} /> },
+  { header: "Max Hold", accessorFn: (r) => maxHoldLabel(r) },
   { header: "Flip Verdict", accessorFn: (r) => String(r.strategy?.flip?.verdict ?? r.flip_verdict ?? "-") },
   { header: "Direction", accessorFn: (r) => String(r.strategy?.directional?.verdict ?? r.directional_verdict ?? r.forecast?.direction ?? "-") },
   { header: "Inventory", accessorFn: (r) => String(r.strategy?.inventory?.verdict ?? r.inventory_verdict ?? "-") },
@@ -244,6 +261,7 @@ const scanColumns: Record<ScanTableKind, ColumnDef<ScoreRecord>[]> = {
     { header: "Rarity", cell: (ctx) => <RarityPill rarity={rarityOf(ctx.row.original)} /> },
     { header: "OVR", accessorFn: (r) => String(field(r, "ovr", cardFromRecord(r).current_ovr) ?? "-") },
     { header: "Decision", cell: (ctx) => <SignalPill action={decisionAction(ctx.row.original)} /> },
+    { header: "Exit By", accessorFn: (r) => maxHoldLabel(r) },
     { header: "Flip Verdict", accessorFn: (r) => String(r.strategy?.flip?.verdict ?? r.flip_verdict ?? "-") },
     { header: "Direction", accessorFn: (r) => String(r.strategy?.directional?.verdict ?? r.directional_verdict ?? "-") },
     { header: "Raw Bid", cell: (ctx) => fmtStubs(field(ctx.row.original, "raw_bid", ctx.row.original.flip?.buy_price)) },
@@ -271,6 +289,8 @@ const scanColumns: Record<ScanTableKind, ColumnDef<ScoreRecord>[]> = {
     { header: "Score", cell: (ctx) => fmtNum(ctx.row.original.upgrade_score ?? ctx.row.original.upgrade?.upgrade_score, 0) },
     { header: "Decision", cell: (ctx) => <SignalPill action={decisionAction(ctx.row.original)} /> },
     { header: "Hold", accessorFn: (r) => String(r.strategy?.composite?.hold_duration ?? r.holding_horizon ?? "manual review") },
+    { header: "Exit By", accessorFn: (r) => maxHoldLabel(r) },
+    { header: "Exit Timing", accessorFn: (r) => exitTiming(r) },
     { header: "Reasons", cell: (ctx) => <ReasonCodes codes={decisionReasons(ctx.row.original)} /> }
   ],
   watch: [
@@ -291,6 +311,8 @@ const scanColumns: Record<ScanTableKind, ColumnDef<ScoreRecord>[]> = {
     { header: "Rarity", cell: (ctx) => <RarityPill rarity={rarityOf(ctx.row.original)} /> },
     { header: "OVR", accessorFn: (r) => String(field(r, "ovr", cardFromRecord(r).current_ovr) ?? "-") },
     { header: "Decision", cell: (ctx) => <SignalPill action={decisionAction(ctx.row.original)} /> },
+    { header: "Exit By", accessorFn: (r) => maxHoldLabel(r) },
+    { header: "Exit Timing", accessorFn: (r) => exitTiming(r) },
     { header: "Flip", cell: (ctx) => <SignalPill action={governedAction(ctx.row.original, ctx.row.original.flip_action ?? ctx.row.original.flip?.action)} /> },
     { header: "Upgrade", cell: (ctx) => <SignalPill action={governedAction(ctx.row.original, ctx.row.original.upgrade_action ?? ctx.row.original.upgrade?.action)} /> },
     { header: "Forecast", accessorFn: (r) => String(r.forecast_direction ?? r.forecast?.direction ?? "-") },
@@ -436,6 +458,14 @@ function DecisionDetails({ record }: { record: ScoreRecord }) {
         <div>
           <div className="stat-label">Forecast EV formula</div>
           <code>{forecastFormula(record)}</code>
+        </div>
+        <div>
+          <div className="stat-label">Entry timing</div>
+          <code>{entryTiming(record)}</code>
+        </div>
+        <div>
+          <div className="stat-label">Exit timing</div>
+          <code>{exitTiming(record)} max_hold={maxHoldLabel(record)}</code>
         </div>
         <div>
           <div className="stat-label">Scenario probabilities</div>

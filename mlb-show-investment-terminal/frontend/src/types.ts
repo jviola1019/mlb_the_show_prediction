@@ -171,6 +171,9 @@ export type StrategyBlock = {
     investable_label?: string | null;
     hold_duration?: string;
     holding_instruction?: string;
+    entry_timing?: string;
+    exit_timing?: string;
+    max_hold_hours?: number | null;
     explanation?: string;
     gates_passed?: string[];
     gates_failed?: string[];
@@ -268,6 +271,9 @@ export type ScoreRecord = {
   inventory_verdict?: string;
   holding_horizon?: string;
   holding_instruction?: string;
+  entry_timing?: string;
+  exit_timing?: string;
+  max_hold_hours?: number | null;
   investable_label?: string | null;
   inventory_risk_score?: number | null;
   expected_exit_time_hours?: number | null;

@@ -34,6 +34,23 @@ strategy.composite = deterministic final action from the matrix`}</pre>
           <li>INVESTABLE is directional-only and must include a hold duration.</li>
         </ul>
       </Panel>
+      <Panel title="Execution Timing">
+        <div className="table-wrap mini-table">
+          <table>
+            <thead><tr><th>Action</th><th>Entry</th><th>Exit clock</th></tr></thead>
+            <tbody>
+              <tr><td><code>INSTANT FLIP ONLY</code></td><td>limit bid only</td><td>relist immediately; default cap about 2h</td></tr>
+              <tr><td><code>SPREAD CAPTURE ONLY</code></td><td>only while after-tax spread survives friction</td><td>relist immediately; cancel/reassess if queue misses expected exit window</td></tr>
+              <tr><td><code>FLIP OR SHORT HOLD</code></td><td>limit bid only</td><td>take early spread exit or hold only to the selected 1d/3d/7d horizon</td></tr>
+              <tr><td><code>SPECULATIVE HOLD</code></td><td>freshness, liquidity, and size gates must pass</td><td>hold up to stated horizon unless risk gate trips first</td></tr>
+              <tr><td><code>WATCHLIST / AVOID</code></td><td>no model entry</td><td>manual liquidation only for existing inventory</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+      <Panel title="Analytics Design">
+        <p>WebGL/3D charts were removed. The terminal now uses 2D EV bars, forecast fans, spread/liquidity scatter, calibration reliability, and equity/drawdown views because those directly support trading decisions on desktop and mobile.</p>
+      </Panel>
       <Panel title="Deployment">
         <p>Hugging Face serves FastAPI and the React build from one process. Supabase writes are server-side only and the app degrades to read-only mode when credentials are absent.</p>
       </Panel>

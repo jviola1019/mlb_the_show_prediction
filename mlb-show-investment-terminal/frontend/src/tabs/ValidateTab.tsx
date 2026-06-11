@@ -1,15 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
 import { CheckCircle2 } from "lucide-react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useState } from "react";
 import { api } from "../api";
+import { BacktestEquityDrawdownChart, CalibrationReliabilityPlot } from "../analytics";
 import type { TerminalContext } from "../appState";
 import { fmtNum, fmtPct, fmtStubs, Panel, Stat } from "../components";
 import { VerdictBanner, verdictOf } from "../verdictGuard";
-import { Suspense, lazy, useEffect } from "react";
-import type { CalibrationBin } from "../types";
-
-const ReliabilityRibbon3D = lazy(() => import("../viz/ReliabilityRibbon3D"));
+import { useEffect } from "react";
 
 export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
   const [predictions, setPredictions] = useState("[]");
@@ -160,6 +157,7 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
               <Stat label="Hit rate" value={fmtPct((strategyBacktest.data.metrics as Record<string, unknown> | undefined)?.hit_rate, 1)} />
             </div>
             <pre>{JSON.stringify({ baselines: strategyBacktest.data.baselines, baseline_comparison: strategyBacktest.data.baseline_comparison, reason_codes: strategyBacktest.data.reason_codes }, null, 2)}</pre>
+            <BacktestEquityDrawdownChart data={equityCurve(strategyBacktest.data.sample_predictions as Array<Record<string, unknown>> | undefined)} />
           </>
         ) : null}
       </Panel>
@@ -186,6 +184,7 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
               baselines: completedOrderBacktest.data.baselines,
               baseline_comparison: completedOrderBacktest.data.baseline_comparison
             }, null, 2)}</pre>
+            <BacktestEquityDrawdownChart data={equityCurve(completedOrderBacktest.data.sample_predictions as Array<Record<string, unknown>> | undefined)} />
           </>
         ) : null}
       </Panel>
@@ -212,6 +211,7 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
               baselines: historicalSnapshotBacktest.data.baselines,
               baseline_comparison: historicalSnapshotBacktest.data.baseline_comparison
             }, null, 2)}</pre>
+            <BacktestEquityDrawdownChart data={equityCurve(historicalSnapshotBacktest.data.sample_predictions as Array<Record<string, unknown>> | undefined)} />
           </>
         ) : null}
       </Panel>
@@ -233,30 +233,14 @@ export function ValidateTab({ ctx }: { ctx: TerminalContext }) {
               <Stat label="Precision" value={fmtPct(data.precision, 1)} />
               <Stat label="Recall" value={fmtPct(data.recall, 1)} />
             </div>
-            <div className="chart">
-              <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={curve}>
-                  <XAxis dataKey="mean_predicted" tickFormatter={(v) => `${(Number(v) * 100).toFixed(0)}%`} />
-                  <YAxis tickFormatter={(v) => `${(Number(v) * 100).toFixed(0)}%`} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="observed_rate" stroke="#10b981" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            {curve.length ? (
-              <Suspense fallback={<div className="empty">loading reliability ribbon…</div>}>
-                <ReliabilityRibbon3D
-                  bins={curve.map((row, idx) => ({
-                    bin_lo: idx / Math.max(1, curve.length),
-                    bin_hi: (idx + 1) / Math.max(1, curve.length),
-                    bin_mid: Number(row.mean_predicted ?? row.bin_mid ?? 0),
-                    n: Number(row.n ?? 1),
-                    mean_pred: Number(row.mean_predicted ?? null),
-                    observed_rate: Number(row.observed_rate ?? null),
-                  })) as CalibrationBin[]}
-                />
-              </Suspense>
-            ) : null}
+            <CalibrationReliabilityPlot
+              data={curve.map((row, idx) => ({
+                bin: idx + 1,
+                predicted: Number(row.mean_predicted ?? row.bin_mid ?? 0),
+                observed: Number(row.observed_rate ?? 0),
+                count: Number(row.n ?? 0),
+              }))}
+            />
           </>
         ) : null}
       </Panel>
@@ -272,4 +256,20 @@ function parseJsonRows(value: string, label: string): Array<Record<string, unkno
   } catch (error) {
     throw new Error(`${label}: ${error instanceof Error ? error.message : "invalid JSON"}`);
   }
+}
+
+function equityCurve(rows?: Array<Record<string, unknown>>) {
+  let equity = 0;
+  let peak = 0;
+  return (rows ?? [])
+    .filter((row) => row.taken !== false && Number.isFinite(Number(row.net_stubs)))
+    .map((row, idx) => {
+      equity += Number(row.net_stubs ?? 0);
+      peak = Math.max(peak, equity);
+      return {
+        step: idx + 1,
+        equity,
+        drawdown: equity - peak,
+      };
+    });
 }

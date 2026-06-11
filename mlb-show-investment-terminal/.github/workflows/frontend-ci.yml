@@ -33,3 +33,5 @@ jobs:
         run: npm test -- --run
       - name: Build
         run: npm run build
+      - name: Bundle budget
+        run: npm run bundle:budget

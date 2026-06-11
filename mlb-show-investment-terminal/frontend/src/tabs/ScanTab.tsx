@@ -1,9 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { BarChart3, ListChecks } from "lucide-react";
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-const ScanDepthHeatmap3D = lazy(() => import("../viz/ScanDepthHeatmap3D"));
 import { api } from "../api";
+import { SpreadLiquidityScatter } from "../analytics";
 import type { TerminalContext } from "../appState";
 import { FreshnessBadge, Panel, Pill, RecordsTable, SourceLink, Stat } from "../components";
 import type { ScanJob, ScoreRecord } from "../types";
@@ -68,6 +68,16 @@ export function ScanTab({ ctx }: { ctx: TerminalContext }) {
   const canRun = mode === "top_live" || (mode === "paste_uuids" && parsed.uuids.length > 0) || (mode === "session_history" && ctx.loadedUuids.length > 0);
   const isRunning = startScan.isPending || activeJob?.status === "queued" || activeJob?.status === "running";
   const progressPct = activeJob?.total ? Math.max(0, Math.min(100, (activeJob.completed / activeJob.total) * 100)) : 0;
+  const scanScatter = useMemo(() => (data?.records ?? []).map((record) => ({
+    label: String(record.name ?? record.card?.name ?? record.uuid ?? "-"),
+    spreadPct: Number(record.spread_pct ?? record.flip?.spread_pct ?? 0),
+    liquidity: Number(record.liquidity_recent ?? record.flip?.liquidity_recent ?? record.card?.liquidity_recent ?? 0),
+    ev: Number(record.flip_roi ?? record.flip?.roi ?? record.forecast_ev_7d ?? record.forecast?.expected_ret ?? 0),
+  })), [data?.records]);
+  const modelHoldRows = useMemo(() => (data?.records ?? []).filter((record) => {
+    const action = String(record.strategy?.composite?.final_action ?? record.final_action ?? record.decision_action ?? "");
+    return action.includes("HOLD");
+  }), [data?.records]);
 
   function selectRecord(record: ScoreRecord) {
     const uuid = record.uuid ?? record.card?.uuid;
@@ -184,10 +194,8 @@ export function ScanTab({ ctx }: { ctx: TerminalContext }) {
           <Panel title="Flip Candidates" kicker="spread capture only; see final action">
             <RecordsTable rows={data.partitions.flip_buys} kind="flip" onRowClick={selectRecord} selectedUuid={selectedUuid} />
           </Panel>
-          <Panel title="Market Depth 3D" kicker="OVR x liquidity x flip ROI, color = validation tier">
-            <Suspense fallback={<div className="empty">loading 3D heatmap...</div>}>
-              <ScanDepthHeatmap3D records={data.records} />
-            </Suspense>
+          <Panel title="Spread / Liquidity Analytics" kicker="2D execution screen">
+            <SpreadLiquidityScatter data={scanScatter} />
           </Panel>
           <Panel title="Speculative Holds" kicker="directional or roster scenario edge">
             <RecordsTable rows={data.partitions.upgrade_buys} kind="upgrade" onRowClick={selectRecord} selectedUuid={selectedUuid} />
@@ -196,8 +204,8 @@ export function ScanTab({ ctx }: { ctx: TerminalContext }) {
             <p className="muted">Watch rows keep flip ROI, forecast direction, and scenario probabilities separate. Blocked EV remains blank.</p>
             <RecordsTable rows={data.partitions.watch ?? []} kind="watch" onRowClick={selectRecord} selectedUuid={selectedUuid} />
           </Panel>
-          <Panel title="Holds">
-            <RecordsTable rows={data.partitions.holds} kind="holds" onRowClick={selectRecord} selectedUuid={selectedUuid} />
+          <Panel title="All Hold Actions" kicker="short-hold and speculative-hold timelines">
+            <RecordsTable rows={modelHoldRows.length ? modelHoldRows : data.partitions.holds} kind="holds" onRowClick={selectRecord} selectedUuid={selectedUuid} />
           </Panel>
           <Panel title="Sells">
             <RecordsTable rows={data.partitions.sells} kind="sells" onRowClick={selectRecord} selectedUuid={selectedUuid} />

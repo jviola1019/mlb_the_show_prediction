@@ -27,6 +27,13 @@ from .strategy_ontology import (
 
 RULE_VERSION = "strategy-matrix-2026-05-13"
 
+HORIZON_HOURS = {
+    HoldingHorizon.ONE_DAY: 24.0,
+    HoldingHorizon.THREE_DAY: 72.0,
+    HoldingHorizon.SEVEN_DAY: 168.0,
+    HoldingHorizon.MANUAL_REVIEW: None,
+}
+
 
 def _num(value: Any) -> float | None:
     if value is None or value == "":
@@ -317,7 +324,13 @@ def apply_strategy_matrix(
 
     investable_label = directional.investable_label if d == DirectionalVerdict.BULLISH else None
     hold = directional.recommended_holding_horizon if investable_label else HoldingHorizon.MANUAL_REVIEW
-    hold_text = directional.holding_instruction if investable_label else "do not hold as an investment"
+    entry_timing, exit_timing, max_hold_hours, hold_text = _timing_instruction(
+        action=action,
+        flip=flip,
+        directional=directional,
+        inventory=inventory,
+        investable_label=investable_label,
+    )
     passed = _unique([f"flip:{x}" for x in flip.gates_passed] + [f"inventory:{x}" for x in inventory.gates_passed] + [f"forecast:{x}" for x in directional.gates_passed])
     failed = _unique([f"flip:{x}" for x in flip.gates_failed] + [f"inventory:{x}" for x in inventory.gates_failed] + [f"forecast:{x}" for x in directional.gates_failed])
     codes = _unique([
@@ -338,11 +351,75 @@ def apply_strategy_matrix(
         investable_label=investable_label,
         hold_duration=hold,
         holding_instruction=hold_text,
+        entry_timing=entry_timing,
+        exit_timing=exit_timing,
+        max_hold_hours=max_hold_hours,
         explanation=reason,
         gates_passed=passed,
         gates_failed=failed,
         reason_codes=codes,
         confidence=confidence,
+    )
+
+
+def _timing_instruction(
+    *,
+    action: FinalAction,
+    flip: FlipStrategy,
+    directional: DirectionalStrategy,
+    inventory: InventoryStrategy,
+    investable_label: str | None,
+) -> tuple[str, str, float | None, str]:
+    exit_hours = inventory.expected_exit_time_hours or flip.expected_holding_time_hours
+    if action == FinalAction.INSTANT_FLIP_ONLY:
+        hours = exit_hours if exit_hours is not None else 2.0
+        return (
+            "enter only as a limit buy at or below current bid; skip market buys",
+            f"after fill, immediately relist near current ask; cancel or liquidate if not exited within {hours:g}h",
+            hours,
+            f"instant flip only; target exit within {hours:g}h and do not hold as an investment",
+        )
+    if action == FinalAction.SPREAD_CAPTURE_ONLY:
+        hours = exit_hours if exit_hours is not None else 8.0
+        return (
+            "enter only when after-tax spread remains positive after friction",
+            f"relist immediately for spread capture; if queue does not clear within {hours:g}h, cancel and reassess",
+            hours,
+            f"spread capture only; target exit within {hours:g}h unless liquidity worsens first",
+        )
+    if action == FinalAction.FLIP_OR_SHORT_HOLD:
+        horizon_hours = HORIZON_HOURS.get(directional.recommended_holding_horizon)
+        hours = min(x for x in [horizon_hours, exit_hours] if x is not None) if any(
+            x is not None for x in [horizon_hours, exit_hours]
+        ) else None
+        horizon = directional.recommended_holding_horizon.value
+        return (
+            "enter as limit bid only; do not chase above modeled ask/bid spread",
+            f"take spread exit if filled early; otherwise hold up to {horizon} and liquidate when risk gate trips",
+            hours,
+            f"flip or short hold; hold up to {horizon} unless exit/risk gate triggers first",
+        )
+    if action == FinalAction.SPECULATIVE_HOLD and investable_label:
+        horizon = directional.recommended_holding_horizon.value
+        hours = HORIZON_HOURS.get(directional.recommended_holding_horizon)
+        return (
+            "enter only after confirming freshness, liquidity, and position-size cap",
+            f"hold up to {horizon}; liquidate early if forecast turns bearish, inventory turns thin, or stop-loss/risk gate fails",
+            hours,
+            directional.holding_instruction,
+        )
+    if action in {FinalAction.AVOID, FinalAction.AVOID_MANUAL_REVIEW, FinalAction.MANUAL_REVIEW}:
+        return (
+            "do not enter a new model position",
+            "sell existing inventory only by manual review or risk-control liquidation",
+            0.0,
+            "no model hold; reduce or avoid inventory",
+        )
+    return (
+        "do not enter a model trade until required real-data gates pass",
+        "watchlist only; collect fresh snapshots and reassess",
+        None,
+        "watchlist only; no model hold duration",
     )
 
 

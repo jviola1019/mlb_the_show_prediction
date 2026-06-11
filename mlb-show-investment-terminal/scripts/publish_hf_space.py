@@ -8,6 +8,7 @@ node_modules, caches, and generated test artifacts are never pushed.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -15,7 +16,7 @@ import tempfile
 import time
 from pathlib import Path
 from urllib.error import URLError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 
 DEFAULT_REPO_ID = "jviola1019/mlb-show-investment-terminal"
@@ -91,6 +92,35 @@ def smoke(url: str, timeout_s: int) -> None:
     raise RuntimeError(f"Space smoke test did not pass before timeout. Last error: {last_error}")
 
 
+def _post_json(url: str, payload: dict) -> dict:
+    data = json.dumps(payload).encode("utf-8")
+    req = Request(
+        url,
+        data=data,
+        headers={"content-type": "application/json"},
+        method="POST",
+    )
+    with urlopen(req, timeout=30) as response:  # noqa: S310 - user-selected public Space URL
+        body = response.read().decode("utf-8")
+    return json.loads(body)
+
+
+def verify_runtime_contract(url: str) -> dict[str, object]:
+    base = url.rstrip("/")
+    with urlopen(f"{base}/api/persistence/status", timeout=30) as response:  # noqa: S310
+        persistence = json.loads(response.read().decode("utf-8"))
+    strategy = _post_json(f"{base}/api/backtest/strategy", {"snapshots": [], "min_snapshots": 30})
+    return {
+        "persistence": persistence,
+        "empty_strategy_backtest": {
+            "status": strategy.get("status"),
+            "validation_verdict": strategy.get("validation_verdict"),
+            "data_coverage_tier": strategy.get("data_coverage_tier"),
+            "performance_validation_tier": strategy.get("performance_validation_tier"),
+        },
+    }
+
+
 def retry_step(label: str, fn, attempts: int = 4):
     last_exc: Exception | None = None
     for attempt in range(1, attempts + 1):
@@ -150,6 +180,8 @@ def publish(repo_id: str, private: bool, wait: bool, timeout_s: int) -> str:
     url = hf_space_url(repo_id)
     if wait:
         smoke(url, timeout_s=timeout_s)
+        contract = verify_runtime_contract(url)
+        print(json.dumps({"runtime_contract": contract}, sort_keys=True))
     return url
 
 

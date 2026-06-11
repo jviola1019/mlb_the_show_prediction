@@ -236,7 +236,13 @@ label { display: grid; gap: 0.25rem; color: var(--muted); font-size: 0.75rem; te
   background: rgba(0,0,0,.42);
   padding: 0.65rem;
 }
-.stat-value { margin-top: 0.2rem; font-size: 1.08rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-value {
+  margin-top: 0.2rem;
+  font-size: 1.08rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.stat-value .pill { white-space: nowrap; }
 .stat-good .stat-value { color: #6ee7b7; text-shadow: var(--glow-good); }
 .stat-bad .stat-value { color: var(--bad); }
 .stat-warn .stat-value { color: var(--warn); }
@@ -492,6 +498,13 @@ td:has(.card-identity), th:first-child { text-align: left; }
   gap: 0.35rem;
   margin: 0;
 }
+.timing-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 0.65rem;
+}
 .strategy-matrix-table tr.selected-row td {
   background: rgba(16,185,129,.10);
   color: #d1fae5;
@@ -536,14 +549,42 @@ code {
   font-family: "JetBrains Mono", Consolas, monospace;
   color: #cbd5e1;
 }
-.terminal-3d-canvas {
+.terminal-backdrop {
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.72;
+  overflow: hidden;
+  opacity: 0.86;
+  background:
+    radial-gradient(ellipse at 50% 10%, rgba(16,185,129,0.13), transparent 48%),
+    linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,0.36));
+}
+.terminal-grid-plane {
+  position: absolute;
+  left: -14vw;
+  right: -14vw;
+  bottom: -18vh;
+  height: 58vh;
+  transform: perspective(620px) rotateX(66deg);
+  transform-origin: 50% 100%;
+  background-image:
+    linear-gradient(rgba(16,185,129,.24) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16,185,129,.20) 1px, transparent 1px);
+  background-size: 44px 44px;
+  box-shadow: 0 -12px 80px rgba(16,185,129,.12);
+  mask-image: linear-gradient(to top, black 0%, black 46%, transparent 92%);
+  -webkit-mask-image: linear-gradient(to top, black 0%, black 46%, transparent 92%);
+}
+.terminal-signal-lines {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(115deg, transparent 0 39%, rgba(56,189,248,.14) 40%, transparent 41% 100%),
+    linear-gradient(122deg, transparent 0 55%, rgba(16,185,129,.13) 56%, transparent 57% 100%),
+    repeating-linear-gradient(90deg, transparent 0 94px, rgba(56,189,248,.045) 95px, transparent 96px);
   mix-blend-mode: screen;
 }
 .scanline-overlay {
@@ -681,6 +722,7 @@ code {
   * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
   .bootscreen { display: none; }
   .card-art { transform: none; }
+  .terminal-grid-plane { transform: none; height: 38vh; opacity: 0.45; }
 }
 
 /* ============================================================

@@ -23,6 +23,20 @@ Final actions:
 
 For the Matt Olson regression case with ask around `1,788`, bid around `1,521`, after-tax value around `1,609`, net spread around `88`, forecast EV around `-23.2%`, and `P(profit)=0%`, the correct final action is `INSTANT FLIP ONLY`, not `INVESTABLE`.
 
+## Execution Timelines
+
+Every model trade now carries an explicit timing contract under `strategy.composite.entry_timing`, `exit_timing`, and `max_hold_hours`.
+
+| Action | Entry timing | Exit / sell timing |
+|---|---|---|
+| `INSTANT FLIP ONLY` | Limit buy at or below current bid; do not chase. | Relist immediately near the modeled ask. Cancel, relist lower, or liquidate if the expected exit window is missed. Default cap is about `2h` unless liquidity model says otherwise. |
+| `SPREAD CAPTURE ONLY` | Enter only while after-tax spread remains positive after friction. | Relist immediately. If queue does not clear inside the expected exit window, cancel and reassess. |
+| `FLIP OR SHORT HOLD` | Enter as limit bid only. | Take spread exit if it fills early; otherwise hold only to the selected `1d`/`3d`/`7d` horizon and exit early if a risk gate trips. |
+| `SPECULATIVE HOLD` / directional `INVESTABLE` | Enter only after freshness, liquidity, and position-size gates pass. | Hold up to the stated horizon (`1d`, `3d`, or `7d`) unless forecast turns bearish, inventory turns thin, or stop-loss/risk gates fail first. |
+| `WATCHLIST`, `MANUAL REVIEW`, `AVOID` | No model entry. | Existing inventory requires manual liquidation or risk-control handling. |
+
+The terminal is deliberately strict: if a profitable spread has a bearish forecast, the timer is an exit clock, not an investment horizon.
+
 ## Data Policy
 
 No synthetic production data is allowed. The app uses live The Show market payloads, user-provided rows, Supabase snapshots, or committed historical artifacts. If historical snapshots or labels are missing, the UI reports `UNVALIDATED` and the strategy matrix returns `WATCHLIST / NO MODEL TRADE` instead of promoting confidence.
@@ -172,7 +186,7 @@ The React terminal has 10 top-level tabs:
 9. Data Provenance & Audit
 10. README / Operations
 
-Mobile uses a section selector instead of the crowded tab bar. Tables scroll horizontally with sticky first columns. The target card has a restrained CSS 3D treatment that is disabled under reduced motion.
+Mobile uses a section selector instead of the crowded tab bar. Tables scroll horizontally with sticky first columns. The target card has a restrained CSS depth treatment that is disabled under reduced motion. The old WebGL/3D charts were removed; forecast, validation, and scanner views now use 2D charts designed for reading EV, liquidity, calibration, and drawdown directly.
 
 ## Deploy To Hugging Face
 

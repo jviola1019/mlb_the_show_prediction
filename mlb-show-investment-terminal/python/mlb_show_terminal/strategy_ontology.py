@@ -138,6 +138,9 @@ class CompositeStrategy:
     investable_label: str | None
     hold_duration: HoldingHorizon
     holding_instruction: str
+    entry_timing: str
+    exit_timing: str
+    max_hold_hours: float | None
     explanation: str
     gates_passed: list[str]
     gates_failed: list[str]

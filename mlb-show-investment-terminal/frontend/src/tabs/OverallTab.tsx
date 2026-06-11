@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Suspense, lazy, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
+import { SpreadLiquidityScatter } from "../analytics";
 import type { TerminalContext } from "../appState";
 import {
   CardIdentity,
@@ -17,8 +18,6 @@ import {
 } from "../components";
 import { finalAction, StrategySummary } from "../strategyComponents";
 import { VerdictBanner, blankIf, governedAction, isInvestable, verdictOf } from "../verdictGuard";
-
-const TierOvrEvScatter3D = lazy(() => import("../viz/TierOvrEvScatter3D"));
 
 export function OverallTab({ ctx }: { ctx: TerminalContext }) {
   const [now, setNow] = useState(() => new Date());
@@ -37,6 +36,12 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
   const record = ctx.currentRecord;
   const cardStatus = record ? verdictOf(record) : null;
   const overallTone = cardStatus === "INVESTABLE" ? "good" : cardStatus === "OBSERVATIONAL ONLY" ? "warn" : cardStatus ? "bad" : "neutral";
+  const scanScatter = useMemo(() => (ctx.lastScan?.records ?? []).map((row) => ({
+    label: String(row.name ?? row.card?.name ?? row.uuid ?? "-"),
+    spreadPct: Number(row.spread_pct ?? row.flip?.spread_pct ?? 0),
+    liquidity: Number(row.liquidity_recent ?? row.flip?.liquidity_recent ?? row.card?.liquidity_recent ?? 0),
+    ev: Number(row.flip_roi ?? row.flip?.roi ?? row.forecast_ev_7d ?? row.forecast?.expected_ret ?? 0),
+  })), [ctx.lastScan?.records]);
 
   return (
     <div className="grid">
@@ -201,10 +206,8 @@ export function OverallTab({ ctx }: { ctx: TerminalContext }) {
       </Panel>
 
       {ctx.lastScan?.records?.length ? (
-        <Panel title="Universe 3D" kicker="OVR x tier x directional EV">
-          <Suspense fallback={<div className="empty">loading universe...</div>}>
-            <TierOvrEvScatter3D records={ctx.lastScan.records} />
-          </Suspense>
+        <Panel title="Opportunity Analytics" kicker="liquidity, spread, and expected edge">
+          <SpreadLiquidityScatter data={scanScatter} />
         </Panel>
       ) : null}
 

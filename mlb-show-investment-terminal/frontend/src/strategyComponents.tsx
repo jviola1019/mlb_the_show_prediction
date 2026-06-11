@@ -53,8 +53,21 @@ export function StrategySummary({ record }: { record: ScoreRecord }) {
         <Stat label="Coverage tier" value={String(directional.data_coverage_tier ?? record.data_coverage_tier ?? record.provenance?.data_coverage_tier ?? "-")} />
         <Stat label="Performance tier" value={String(directional.performance_validation_tier ?? record.performance_validation_tier ?? directional.validation_tier ?? record.validation_tier ?? "-")} />
         <Stat label="Inventory risk" value={fmtPct(inventory.inventory_risk_score, 0)} tone={(inventory.inventory_risk_score ?? 0) > 0.7 ? "bad" : (inventory.inventory_risk_score ?? 0) > 0.4 ? "warn" : "good"} />
+        <Stat label="Max hold" value={composite.max_hold_hours != null ? `${fmtNum(composite.max_hold_hours, 1)}h` : "no model hold"} />
       </div>
       {composite.holding_instruction ? <p className="muted hold-note"><Clock3 size={13} /> {composite.holding_instruction}</p> : null}
+      {composite.entry_timing || composite.exit_timing ? (
+        <div className="timing-grid">
+          <div>
+            <div className="stat-label">Entry timing</div>
+            <p className="muted">{composite.entry_timing ?? "-"}</p>
+          </div>
+          <div>
+            <div className="stat-label">Exit timing</div>
+            <p className="muted">{composite.exit_timing ?? "-"}</p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -105,6 +105,9 @@ class StrategyMatrixTests(unittest.TestCase):
         self.assertEqual(c.final_action, FinalAction.INSTANT_FLIP_ONLY)
         self.assertIsNone(c.investable_label)
         self.assertIn("bearish directional forecast", c.explanation)
+        self.assertEqual(c.max_hold_hours, 2)
+        self.assertIn("immediately relist", c.exit_timing)
+        self.assertIn("do not hold", c.holding_instruction)
 
     def test_required_matrix_rows(self):
         cases = [
@@ -148,6 +151,18 @@ class StrategyMatrixTests(unittest.TestCase):
         self.assertEqual(d.data_coverage_tier, ValidationTier.GOLD)
         self.assertEqual(d.performance_validation_tier, ValidationTier.BRONZE)
         self.assertEqual(d.validation_tier, ValidationTier.BRONZE)
+
+    def test_bullish_hold_includes_timed_liquidation_instruction(self):
+        c = apply_strategy_matrix(
+            flip(FlipVerdict.NO_FLIP_EDGE),
+            directional(DirectionalVerdict.BULLISH),
+            inventory(InventoryVerdict.MEDIUM_LIQUIDITY),
+        )
+        self.assertEqual(c.final_action, FinalAction.SPECULATIVE_HOLD)
+        self.assertEqual(c.hold_duration, HoldingHorizon.ONE_DAY)
+        self.assertEqual(c.max_hold_hours, 24.0)
+        self.assertIn("hold up to 1d", c.exit_timing)
+        self.assertIn("risk gate", c.exit_timing)
 
 
 if __name__ == "__main__":

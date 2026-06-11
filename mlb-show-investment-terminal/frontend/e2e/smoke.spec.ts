@@ -5,22 +5,12 @@ async function waitForBoot(page: import("@playwright/test").Page) {
   await page.locator(".bootscreen").waitFor({ state: "detached", timeout: 5000 }).catch(() => undefined);
 }
 
-async function expectCanvasHasPixels(page: import("@playwright/test").Page) {
-  await expect.poll(async () => page.locator("[data-testid='terminal-3d-canvas']").evaluate((canvas) => {
-    const source = canvas as HTMLCanvasElement;
-    const probe = document.createElement("canvas");
-    probe.width = 96;
-    probe.height = 96;
-    const ctx = probe.getContext("2d");
-    if (!ctx || source.width === 0 || source.height === 0) return 0;
-    ctx.drawImage(source, 0, 0, probe.width, probe.height);
-    const data = ctx.getImageData(0, 0, probe.width, probe.height).data;
-    let active = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] > 0 && (data[i] + data[i + 1] + data[i + 2]) > 12) active += 1;
-    }
-    return active;
-  }), { timeout: 15_000 }).toBeGreaterThan(25);
+async function expectBackdropVisible(page: import("@playwright/test").Page) {
+  const backdrop = page.getByTestId("terminal-backdrop");
+  await expect(backdrop).toBeVisible();
+  const box = await backdrop.boundingBox();
+  expect(box?.width ?? 0).toBeGreaterThan(300);
+  expect(box?.height ?? 0).toBeGreaterThan(300);
 }
 
 async function openTerminalTab(page: import("@playwright/test").Page, label: RegExp, value: string) {
@@ -44,7 +34,7 @@ test("terminal renders core tabs and health state", async ({ page }) => {
   }
   await expect(page.getByText("PYTHON QUANT OWNER")).toBeVisible();
   await expect(page.getByText("python", { exact: true })).toBeVisible();
-  await expectCanvasHasPixels(page);
+  await expectBackdropVisible(page);
 });
 
 test("command center has no critical automated accessibility violations", async ({ page }) => {
@@ -150,7 +140,16 @@ test("mock market scan renders final decision, rarity, and separated EV columns"
         flip: { verdict: "FLIP PASS", expected_net_stubs: 80, expected_roi_after_tax_and_friction: 0.08, p_successful_exit: 0.9 },
         directional: { verdict: "BEARISH", expected_return_by_horizon: { "7d": -0.18 }, p_profit: 0, validation_tier: "BRONZE" },
         inventory: { verdict: "HIGH LIQUIDITY", inventory_risk_score: 0.18 },
-        composite: { final_action: "INSTANT FLIP ONLY", strategy_type: "flip", explanation: "positive spread capture, but bearish directional forecast; do not hold as an investment" },
+        composite: {
+          final_action: "INSTANT FLIP ONLY",
+          strategy_type: "flip",
+          hold_duration: "manual_review",
+          holding_instruction: "instant flip only; target exit within 2h and do not hold as an investment",
+          entry_timing: "enter only as a limit buy at or below current bid; skip market buys",
+          exit_timing: "after fill, immediately relist near current ask; cancel or liquidate if not exited within 2h",
+          max_hold_hours: 2,
+          explanation: "positive spread capture, but bearish directional forecast; do not hold as an investment"
+        },
       },
       decision: {
         action: "INSTANT FLIP ONLY",
@@ -197,6 +196,9 @@ test("mock market scan renders final decision, rarity, and separated EV columns"
   await expect(page.getByText("Gold").first()).toBeVisible();
   await expect(page.getByText("Flip ROI").first()).toBeVisible();
   await expect(page.getByText("Forecast EV").first()).toBeVisible();
+  await expect(page.getByText("Exit By").first()).toBeVisible();
+  await expect(page.getByText("2h").first()).toBeVisible();
+  await expect(page.getByText("INVESTABLE")).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });
 
